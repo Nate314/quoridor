@@ -9,7 +9,7 @@ class GameService {
     this.onDisconnect = null;
   }
 
-  connect(gameId, serverUrl = window.location.host) {
+  connect(gameId, playerName, serverUrl = window.location.host) {
     this.gameId = gameId;
     // Use wss:// for https, ws:// for http
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -18,7 +18,8 @@ class GameService {
     this.ws.onopen = () => {
       this.ws.send(JSON.stringify({
         type: 'JOIN_GAME',
-        gameId
+        gameId,
+        playerName
       }));
     };
 

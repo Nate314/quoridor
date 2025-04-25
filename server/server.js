@@ -51,7 +51,11 @@ function createGame(gameId) {
         2: 10
       },
       gameStatus: '',
-      isGameOver: false
+      isGameOver: false,
+      playerNames: {
+        1: '',
+        2: ''
+      }
     }
   };
 }
@@ -84,7 +88,7 @@ function handleMessage(ws, data) {
 }
 
 function handleJoinGame(ws, data) {
-  const { gameId } = data;
+  const { gameId, playerName } = data;
   let game = games.get(gameId);
 
   // Create new game if it doesn't exist
@@ -102,7 +106,8 @@ function handleJoinGame(ws, data) {
   // Add player to game
   const playerNumber = game.players.length + 1;
   game.players.push(ws.playerId);
-  players.set(ws.playerId, { ws, gameId, playerNumber });
+  players.set(ws.playerId, { ws, gameId, playerNumber, playerName });
+  game.gameState.playerNames[playerNumber] = playerName;
 
   // Send game joined confirmation
   ws.send(JSON.stringify({
@@ -114,7 +119,7 @@ function handleJoinGame(ws, data) {
   }));
 
   // Set join message
-  game.gameState.gameStatus = `Player ${playerNumber} has joined the game!`;
+  game.gameState.gameStatus = `${playerName} has joined the game!`;
   
   // If game is ready to start, notify both players
   if (game.players.length === 2) {
@@ -138,24 +143,42 @@ function handleMove(ws, data) {
   // Update game state
   const { move } = data.payload;
   if (move.type === 'move') {
-    game.gameState.pawns[player.playerNumber] = { row: move.row, col: move.col };
+    // Update game state
+    const updatedState = {
+      ...game.gameState,
+      pawns: {
+        ...game.gameState.pawns,
+        [player.playerNumber]: { row: move.row, col: move.col }
+      }
+    };
     
     // Check win condition
     if ((player.playerNumber === 1 && move.row === 0) || 
         (player.playerNumber === 2 && move.row === 8)) {
-      game.gameState.gameStatus = `Player ${player.playerNumber} wins!`;
-      game.gameState.isGameOver = true;
+      updatedState.gameStatus = `${player.playerName} wins!`;
+      updatedState.isGameOver = true;
+    } else {
+      updatedState.gameStatus = `${player.playerName} moved`;
+    }
+    game.gameState = updatedState;
+    
+    if (updatedState.isGameOver) {
       broadcastGameState(game);
       return;
-    } else {
-      game.gameState.gameStatus = `Player ${player.playerNumber} moved`;
     }
   } else if (move.type === 'wall') {
-    game.gameState.walls.push({
-      ...move,
-      playerNumber: player.playerNumber
-    });
-    game.gameState.wallCounts[player.playerNumber]--;
+    // Update game state
+    game.gameState = {
+      ...game.gameState,
+      walls: [
+        ...game.gameState.walls,
+        { ...move, playerNumber: player.playerNumber }
+      ],
+      wallCounts: {
+        ...game.gameState.wallCounts,
+        [player.playerNumber]: game.gameState.wallCounts[player.playerNumber] - 1
+      }
+    };
   }
 
   // Switch turns
@@ -193,12 +216,17 @@ function handleDisconnect(ws) {
 }
 
 function broadcastGameState(game) {
+  const stateToSend = {
+    ...game.gameState,
+    playerNames: game.gameState.playerNames
+  };
+  
   game.players.forEach(playerId => {
     const player = players.get(playerId);
     if (player) {
       player.ws.send(JSON.stringify({
         type: MESSAGE_TYPES.GAME_STATE,
-        payload: game.gameState
+        payload: stateToSend
       }));
     }
   });

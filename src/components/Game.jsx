@@ -6,10 +6,15 @@ const INITIAL_WALL_COUNT = 10;
 
 export default function Game() {
   const [gameId, setGameId] = useState('');
+  const [playerName, setPlayerName] = useState('');
   const [isConnected, setIsConnected] = useState(false);
   const [playerNumber, setPlayerNumber] = useState(null);
   const [error, setError] = useState(null);
   const [gameState, setGameState] = useState(null);
+  const [playerNames, setPlayerNames] = useState({
+    1: '',
+    2: ''
+  });
   const board = initializeBoard();
   const [currentPlayer, setCurrentPlayer] = useState(1); // 1 or 2
   const [wallCounts, setWallCounts] = useState({
@@ -24,6 +29,25 @@ export default function Game() {
   const [walls, setWalls] = useState([]); // Array of wall objects: { row, col, orientation }
   const [validMoves, setValidMoves] = useState([]);
   const [wallPreview, setWallPreview] = useState(null);
+  const [moveHistory, setMoveHistory] = useState([]); // Track moves for undo
+
+  // Function to handle undo
+  function handleUndo() {
+    if (moveHistory.length === 0 || currentPlayer !== playerNumber) return;
+    
+    const lastMove = moveHistory[moveHistory.length - 1];
+    const { prevState } = lastMove;
+    
+    setPawns(prevState.pawns);
+    setCurrentPlayer(prevState.currentPlayer);
+    setWallCounts(prevState.wallCounts);
+    if (lastMove.type === 'wall') {
+      setWalls(prevState.walls);
+    }
+    
+    setMoveHistory(prev => prev.slice(0, -1));
+    gameService.makeMove({ type: 'undo' });
+  }
 
   useEffect(() => {
     // Calculate valid moves whenever the current player or board changes
@@ -99,10 +123,21 @@ export default function Game() {
   useEffect(() => {
     gameService.onGameState = (newGameState) => {
       setGameState(newGameState);
+      if (newGameState.currentPlayer !== currentPlayer) {
+        setSelectedAction('move'); // Reset to move at start of turn
+      }
       setCurrentPlayer(newGameState.currentPlayer);
       setPawns(newGameState.pawns);
       setWalls(newGameState.walls);
       setWallCounts(newGameState.wallCounts);
+      setMoveHistory([]); // Clear move history on new game state
+      // Update player names while preserving existing ones
+      if (newGameState.playerNames) {
+        setPlayerNames(prevNames => ({
+          ...prevNames,
+          ...newGameState.playerNames
+        }));
+      }
     };
 
     gameService.onGameJoined = (data) => {
@@ -110,6 +145,12 @@ export default function Game() {
       setIsConnected(true);
       setError(null);
       setGameState(data.gameState);
+      // Initialize player names when joining
+      setPlayerNames(prevNames => ({
+        ...prevNames,
+        [data.playerNumber]: playerName,
+        ...(data.gameState?.playerNames || {})
+      }));
     };
 
     gameService.onError = (message) => {
@@ -132,8 +173,14 @@ export default function Game() {
       setError('Please enter a game ID');
       return;
     }
-    gameService.connect(gameId);
-  }, [gameId]);
+    const trimmedName = playerName.trim();
+    if (!trimmedName) {
+      setError('Please enter your name');
+      return;
+    }
+    // Send player name with connection and store it locally
+    gameService.connect(gameId, trimmedName);
+  }, [gameId, playerName]);
 
   function isWithinWallPlacementBounds(row, col) {
     return row >= 0 && row < BOARD_SIZE - 1 && col >= 0 && col < BOARD_SIZE - 1;
@@ -147,20 +194,31 @@ export default function Game() {
     if (selectedAction === 'move') {
       const isValidMove = validMoves.some(move => move.row === row && move.col === col);
       if (isValidMove) {
-        // Move pawn
-        gameService.makeMove({
+        // Store current state for undo
+        const move = {
           type: 'move',
           row,
-          col
-        });
+          col,
+          playerName: playerNames[currentPlayer],
+          prevState: {
+            pawns: { ...pawns },
+            currentPlayer,
+            wallCounts: { ...wallCounts }
+          }
+        };
+        
+        // Make move
+        gameService.makeMove(move);
+        setMoveHistory(prev => [...prev, move]);
         
         // Check win condition
         if ((currentPlayer === 1 && row === 0) || (currentPlayer === 2 && row === 8)) {
           return;
         }
         
-        // Switch turns
+        // Switch turns and reset action to move
         setCurrentPlayer(prev => prev === 1 ? 2 : 1);
+        setSelectedAction('move');
       }
     } else if (selectedAction === 'wall-h' && isWithinWallPlacementBounds(row, col)) {
       handleWallPlacement(row, col, 'horizontal');
@@ -175,10 +233,19 @@ export default function Game() {
       // Check if wall placement is valid
       const newWall = { row, col, orientation };
       if (isValidWallPlacement(newWall)) {
-        gameService.makeMove({
+        const move = {
           type: 'wall',
-          ...newWall
-        });
+          ...newWall,
+          playerName: playerNames[currentPlayer],
+          prevState: {
+            walls: [...walls],
+            currentPlayer,
+            wallCounts: { ...wallCounts }
+          }
+        };
+        gameService.makeMove(move);
+        setMoveHistory(prev => [...prev, move]);
+        setSelectedAction('move');
       }
     }
   }
@@ -270,6 +337,12 @@ export default function Game() {
             <div className="input-group">
               <input
                 type="text"
+                value={playerName}
+                onChange={(e) => setPlayerName(e.target.value)}
+                placeholder="Enter your name"
+              />
+              <input
+                type="text"
                 value={gameId}
                 onChange={(e) => setGameId(e.target.value)}
                 placeholder="Enter Game ID to create or join a game"
@@ -285,30 +358,24 @@ export default function Game() {
   return (
     <div className="game">
       <div className="player-info">
-        You are Player {playerNumber}
+        You are {playerNames[playerNumber]} (Player {playerNumber})
       </div>
       <div className="game-info">
         {gameState?.gameStatus && <div className="game-status">{gameState.gameStatus}</div>}
-        <div>{gameState?.isGameOver ? "Game Over" : `Player ${currentPlayer}'s turn`}</div>
-        <div>Walls remaining: Player 1: {wallCounts[1]}, Player 2: {wallCounts[2]}</div>
-        <div>
+        <div>{gameState?.isGameOver ? "Game Over" : `${playerNames[currentPlayer]}'s turn`}</div>
+        <div>Walls remaining: {playerNames[1]}: {wallCounts[1]}, {playerNames[2]}: {wallCounts[2]}</div>
+        <div className="action-buttons">
           <button 
             onClick={() => setSelectedAction('move')}
             className={selectedAction === 'move' ? 'active' : ''}
           >
             Move
           </button>
-          <button 
-            onClick={() => setSelectedAction('wall-h')}
-            className={selectedAction === 'wall-h' ? 'active' : ''}
+          <button
+            onClick={handleUndo}
+            disabled={moveHistory.length === 0 || currentPlayer !== playerNumber || gameState?.isGameOver}
           >
-            Horizontal Wall
-          </button>
-          <button 
-            onClick={() => setSelectedAction('wall-v')}
-            className={selectedAction === 'wall-v' ? 'active' : ''}
-          >
-            Vertical Wall
+            Undo
           </button>
         </div>
       </div>
@@ -326,10 +393,10 @@ export default function Game() {
                 onMouseLeave={() => setWallPreview(null)}
               >
                 {pawns[1].row === rowIndex && pawns[1].col === colIndex && 
-                  <div className="pawn player1">P1</div>
+                  <div className="pawn player1" title={playerNames[1]}>{playerNames[1]?.[0] || 'P1'}</div>
                 }
                 {pawns[2].row === rowIndex && pawns[2].col === colIndex && 
-                  <div className="pawn player2">P2</div>
+                  <div className="pawn player2" title={playerNames[2]}>{playerNames[2]?.[0] || 'P2'}</div>
                 }
               </div>
             ))}
@@ -358,6 +425,20 @@ export default function Game() {
             }}
           />
         )}
+      </div>
+      <div className="wall-actions">
+        <button 
+          onClick={() => setSelectedAction('wall-h')}
+          className={selectedAction === 'wall-h' ? 'active' : ''}
+        >
+          Horizontal Wall
+        </button>
+        <button 
+          onClick={() => setSelectedAction('wall-v')}
+          className={selectedAction === 'wall-v' ? 'active' : ''}
+        >
+          Vertical Wall
+        </button>
       </div>
     </div>
   );
