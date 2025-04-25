@@ -9,6 +9,7 @@ export default function Game() {
   const [isConnected, setIsConnected] = useState(false);
   const [playerNumber, setPlayerNumber] = useState(null);
   const [error, setError] = useState(null);
+  const [gameState, setGameState] = useState(null);
   const board = initializeBoard();
   const [currentPlayer, setCurrentPlayer] = useState(1); // 1 or 2
   const [wallCounts, setWallCounts] = useState({
@@ -34,6 +35,8 @@ export default function Game() {
   }
 
   function calculateValidMoves(pawn, otherPawn, walls) {
+    if (gameState?.isGameOver) return [];
+    
     const moves = [];
     const { row, col } = pawn;
     
@@ -94,17 +97,19 @@ export default function Game() {
   }
 
   useEffect(() => {
-    gameService.onGameState = (gameState) => {
-      setCurrentPlayer(gameState.currentPlayer);
-      setPawns(gameState.pawns);
-      setWalls(gameState.walls);
-      setWallCounts(gameState.wallCounts);
+    gameService.onGameState = (newGameState) => {
+      setGameState(newGameState);
+      setCurrentPlayer(newGameState.currentPlayer);
+      setPawns(newGameState.pawns);
+      setWalls(newGameState.walls);
+      setWallCounts(newGameState.wallCounts);
     };
 
     gameService.onGameJoined = (data) => {
       setPlayerNumber(data.playerNumber);
       setIsConnected(true);
       setError(null);
+      setGameState(data.gameState);
     };
 
     gameService.onError = (message) => {
@@ -130,9 +135,14 @@ export default function Game() {
     gameService.connect(gameId);
   }, [gameId]);
 
+  function isWithinWallPlacementBounds(row, col) {
+    return row >= 0 && row < BOARD_SIZE - 1 && col >= 0 && col < BOARD_SIZE - 1;
+  }
+
   function handleSquareClick(row, col) {
     if (!isConnected) return;
     if (currentPlayer !== playerNumber) return;
+    if (gameState?.isGameOver) return;
 
     if (selectedAction === 'move') {
       const isValidMove = validMoves.some(move => move.row === row && move.col === col);
@@ -146,21 +156,21 @@ export default function Game() {
         
         // Check win condition
         if ((currentPlayer === 1 && row === 0) || (currentPlayer === 2 && row === 8)) {
-          alert(`Player ${currentPlayer} wins!`);
           return;
         }
         
         // Switch turns
         setCurrentPlayer(prev => prev === 1 ? 2 : 1);
       }
-    } else if (selectedAction === 'wall-h' && col < BOARD_SIZE - 1) {
+    } else if (selectedAction === 'wall-h' && isWithinWallPlacementBounds(row, col)) {
       handleWallPlacement(row, col, 'horizontal');
-    } else if (selectedAction === 'wall-v' && row < BOARD_SIZE - 1) {
+    } else if (selectedAction === 'wall-v' && isWithinWallPlacementBounds(row, col)) {
       handleWallPlacement(row, col, 'vertical');
     }
   }
 
   function handleWallPlacement(row, col, orientation) {
+    if (gameState?.isGameOver) return;
     if ((selectedAction === 'wall-h' || selectedAction === 'wall-v') && wallCounts[currentPlayer] > 0) {
       // Check if wall placement is valid
       const newWall = { row, col, orientation };
@@ -190,14 +200,10 @@ export default function Game() {
       else {
         if (newWall.orientation === 'horizontal') {
           // Horizontal wall intersecting vertical wall
-          return wall.col === newWall.col &&
-                 wall.row <= newWall.row &&
-                 wall.row + 1 >= newWall.row;
+          return wall.col === newWall.col && wall.row === newWall.row;
         } else {
           // Vertical wall intersecting horizontal wall
-          return wall.row === newWall.row &&
-                 wall.col <= newWall.col &&
-                 wall.col + 1 >= newWall.col;
+          return wall.row === newWall.row && wall.col === newWall.col;
         }
       }
     });
@@ -240,12 +246,13 @@ export default function Game() {
   }
 
   function handleSquareHover(row, col) {
-    if (selectedAction === 'wall-h' && col < BOARD_SIZE - 1) {
+    if (gameState?.isGameOver) return;
+    if (selectedAction === 'wall-h' && isWithinWallPlacementBounds(row, col)) {
       const previewWall = { row, col, orientation: 'horizontal' };
       if (isValidWallPlacement(previewWall)) {
         setWallPreview(previewWall);
       }
-    } else if (selectedAction === 'wall-v' && row < BOARD_SIZE - 1) {
+    } else if (selectedAction === 'wall-v' && isWithinWallPlacementBounds(row, col)) {
       const previewWall = { row, col, orientation: 'vertical' };
       if (isValidWallPlacement(previewWall)) {
         setWallPreview(previewWall);
@@ -281,7 +288,8 @@ export default function Game() {
         You are Player {playerNumber}
       </div>
       <div className="game-info">
-        <div>Player {currentPlayer}'s turn</div>
+        {gameState?.gameStatus && <div className="game-status">{gameState.gameStatus}</div>}
+        <div>{gameState?.isGameOver ? "Game Over" : `Player ${currentPlayer}'s turn`}</div>
         <div>Walls remaining: Player 1: {wallCounts[1]}, Player 2: {wallCounts[2]}</div>
         <div>
           <button 
@@ -304,14 +312,14 @@ export default function Game() {
           </button>
         </div>
       </div>
-      <div className={`board ${currentPlayer !== playerNumber ? 'not-your-turn' : ''}`}>
+      <div className={`board ${currentPlayer !== playerNumber || gameState?.isGameOver ? 'not-your-turn' : ''} ${gameState?.isGameOver ? 'game-over' : ''}`}>
         {board.map((row, rowIndex) => (
           <div key={rowIndex} className="board-row">
             {row.map((_, colIndex) => (
               <div
                 key={colIndex}
                 className={`square ${
-                  validMoves.some(move => move.row === rowIndex && move.col === colIndex) ? 'valid-move' : ''
+                  !gameState?.isGameOver && validMoves.some(move => move.row === rowIndex && move.col === colIndex) ? 'valid-move' : ''
                 }`}
                 onClick={() => handleSquareClick(rowIndex, colIndex)}
                 onMouseEnter={() => handleSquareHover(rowIndex, colIndex)}

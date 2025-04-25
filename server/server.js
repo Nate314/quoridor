@@ -49,7 +49,9 @@ function createGame(gameId) {
       wallCounts: {
         1: 10,
         2: 10
-      }
+      },
+      gameStatus: '',
+      isGameOver: false
     }
   };
 }
@@ -111,6 +113,9 @@ function handleJoinGame(ws, data) {
     }
   }));
 
+  // Set join message
+  game.gameState.gameStatus = `Player ${playerNumber} has joined the game!`;
+  
   // If game is ready to start, notify both players
   if (game.players.length === 2) {
     broadcastGameState(game);
@@ -134,6 +139,17 @@ function handleMove(ws, data) {
   const { move } = data.payload;
   if (move.type === 'move') {
     game.gameState.pawns[player.playerNumber] = { row: move.row, col: move.col };
+    
+    // Check win condition
+    if ((player.playerNumber === 1 && move.row === 0) || 
+        (player.playerNumber === 2 && move.row === 8)) {
+      game.gameState.gameStatus = `Player ${player.playerNumber} wins!`;
+      game.gameState.isGameOver = true;
+      broadcastGameState(game);
+      return;
+    } else {
+      game.gameState.gameStatus = `Player ${player.playerNumber} moved`;
+    }
   } else if (move.type === 'wall') {
     game.gameState.walls.push({
       ...move,
