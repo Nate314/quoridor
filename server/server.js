@@ -55,7 +55,8 @@ function createGame(gameId) {
       playerNames: {
         1: '',
         2: ''
-      }
+      },
+      lastMove: null
     }
   };
 }
@@ -149,6 +150,12 @@ function handleMove(ws, data) {
       pawns: {
         ...game.gameState.pawns,
         [player.playerNumber]: { row: move.row, col: move.col }
+      },
+      lastMove: {
+        type: 'move',
+        playerNumber: player.playerNumber,
+        from: game.gameState.pawns[player.playerNumber],
+        to: { row: move.row, col: move.col }
       }
     };
     
@@ -177,6 +184,14 @@ function handleMove(ws, data) {
       wallCounts: {
         ...game.gameState.wallCounts,
         [player.playerNumber]: game.gameState.wallCounts[player.playerNumber] - 1
+      },
+      gameStatus: `${player.playerName} placed a wall`,
+      lastMove: {
+        type: 'wall',
+        playerNumber: player.playerNumber,
+        row: move.row,
+        col: move.col,
+        orientation: move.orientation
       }
     };
   }
