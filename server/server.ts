@@ -46,6 +46,9 @@ wss.on('connection', (ws) => {
   });
 
   ws.on('close', () => handleDisconnect(ws));
+
+  // Without a listener, a malformed frame would crash the process; ws closes the socket itself
+  ws.on('error', (error) => console.error('WebSocket error:', error));
 });
 
 function handleMessage(ws: WebSocket, data: unknown): void {
