@@ -438,3 +438,35 @@ body, html {
     transform: translateY(0);
   }
 }
+
+.game-id {
+  position: fixed;
+  top: 1rem;
+  left: 1rem;
+  z-index: 10;
+  padding: 8px 14px;
+  border-radius: 4px;
+  background: var(--banner-bg);
+  color: #FFF;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  font-size: 14px;
+  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+.player-left {
+  opacity: 0.5;
+}
+
+.pawn.player3 {
+  background: radial-gradient(circle at 35% 35%, #81C784 0%, #43A047 100%);
+  border: 2px solid #2E7D32;
+}
+
+.pawn.player4 {
+  background: radial-gradient(circle at 35% 35%, #BA68C8 0%, #8E24AA 100%);
+  border: 2px solid #6A1B9A;
+}
+
+.board-area {
+  position: relative;
+}

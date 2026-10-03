@@ -1,8 +1,8 @@
+import { MESSAGE_TYPES } from '../../shared/messages.js';
+
 class GameService {
   constructor() {
     this.ws = null;
-    this.gameId = null;
-    this.playerNumber = null;
     this.onGameState = null;
     this.onGameJoined = null;
     this.onError = null;
@@ -10,73 +10,57 @@ class GameService {
   }
 
   connect(gameId, playerName, serverUrl = window.location.host) {
-    this.gameId = gameId;
+    // Drop any earlier socket, e.g. after a refused join, without reporting a disconnect
+    this.disconnect();
+
     // Use wss:// for https, ws:// for http
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    this.ws = new WebSocket(`${protocol}//${serverUrl}`);
+    const ws = new WebSocket(`${protocol}//${serverUrl}`);
+    this.ws = ws;
 
-    this.ws.onopen = () => {
-      this.ws.send(JSON.stringify({
-        type: 'JOIN_GAME',
-        gameId,
-        playerName
-      }));
+    ws.onopen = () => {
+      this.send({ type: MESSAGE_TYPES.JOIN_GAME, gameId, playerName });
     };
 
-    this.ws.onmessage = (event) => {
-      const data = JSON.parse(event.data);
-      this.handleMessage(data);
+    ws.onmessage = (event) => {
+      this.handleMessage(JSON.parse(event.data));
     };
 
-    this.ws.onclose = () => {
-      if (this.onDisconnect) {
-        this.onDisconnect();
-      }
+    ws.onclose = () => {
+      if (this.ws !== ws) return;
+      this.ws = null;
+      this.onDisconnect?.();
     };
   }
 
-  handleMessage(data) {
-    switch (data.type) {
-      case 'GAME_JOINED':
-        this.playerNumber = data.payload.playerNumber;
-        if (this.onGameJoined) {
-          this.onGameJoined(data.payload);
-        }
+  handleMessage({ type, payload }) {
+    switch (type) {
+      case MESSAGE_TYPES.GAME_JOINED:
+        this.onGameJoined?.(payload);
         break;
+      case MESSAGE_TYPES.GAME_STATE:
+        this.onGameState?.(payload);
+        break;
+      case MESSAGE_TYPES.GAME_ERROR:
+        this.onError?.(payload.message);
+        break;
+    }
+  }
 
-      case 'GAME_STATE':
-        if (this.onGameState) {
-          this.onGameState(data.payload);
-        }
-        break;
-
-      case 'GAME_ERROR':
-        if (this.onError) {
-          this.onError(data.payload.message);
-        }
-        break;
-
-      case 'PLAYER_DISCONNECTED':
-        if (this.onDisconnect) {
-          this.onDisconnect();
-        }
-        break;
+  send(message) {
+    if (this.ws?.readyState === WebSocket.OPEN) {
+      this.ws.send(JSON.stringify(message));
     }
   }
 
   makeMove(move) {
-    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-      this.ws.send(JSON.stringify({
-        type: 'MAKE_MOVE',
-        payload: { move }
-      }));
-    }
+    this.send({ type: MESSAGE_TYPES.MAKE_MOVE, payload: { move } });
   }
 
   disconnect() {
-    if (this.ws) {
-      this.ws.close();
-    }
+    const ws = this.ws;
+    this.ws = null;
+    ws?.close();
   }
 }
 

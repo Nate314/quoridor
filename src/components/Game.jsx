@@ -1,171 +1,40 @@
 import { useState, useEffect, useCallback } from 'react';
 import gameService from '../services/gameService';
+import { BOARD_SIZE, SEATS, getValidMoves, isValidWallPlacement } from '../../shared/rules.js';
 
-const BOARD_SIZE = 9;
-const INITIAL_WALL_COUNT = 10;
-const GOAL_SIDES = { 1: 'top', 2: 'bottom' };
+const SQUARE_SIZE = 52; // 50px square plus its 1px borders
+const BOARD = Array.from({ length: BOARD_SIZE }, () => Array(BOARD_SIZE).fill(null));
 
 export default function Game() {
   const [gameId, setGameId] = useState('');
   const [playerName, setPlayerName] = useState('');
-  const [isConnected, setIsConnected] = useState(false);
   const [playerNumber, setPlayerNumber] = useState(null);
-  const [error, setError] = useState(null);
   const [gameState, setGameState] = useState(null);
-  const [playerNames, setPlayerNames] = useState({
-    1: '',
-    2: ''
-  });
-  const board = initializeBoard();
-  const [currentPlayer, setCurrentPlayer] = useState(1); // 1 or 2
-  const [wallCounts, setWallCounts] = useState({
-    1: INITIAL_WALL_COUNT,
-    2: INITIAL_WALL_COUNT
-  });
+  const [error, setError] = useState(null);
   const [selectedAction, setSelectedAction] = useState('move'); // 'move', 'wall-h', or 'wall-v'
-  const [pawns, setPawns] = useState({
-    1: { row: 8, col: 4 }, // Player 1 starts at bottom
-    2: { row: 0, col: 4 }  // Player 2 starts at top
-  });
-  const [walls, setWalls] = useState([]); // Array of wall objects: { row, col, orientation }
-  const [validMoves, setValidMoves] = useState([]);
   const [wallPreview, setWallPreview] = useState(null);
-  const [moveHistory, setMoveHistory] = useState([]); // Track moves for undo
   const [lastMoveHovered, setLastMoveHovered] = useState(false);
   const [lastMovePinned, setLastMovePinned] = useState(false);
-  const lastMove = gameState?.lastMove;
-  const showLastMove = Boolean(lastMove) && (lastMoveHovered || lastMovePinned);
-
-  // Function to handle undo
-  function handleUndo() {
-    if (moveHistory.length === 0 || currentPlayer !== playerNumber) return;
-    
-    const lastMove = moveHistory[moveHistory.length - 1];
-    const { prevState } = lastMove;
-    
-    setPawns(prevState.pawns);
-    setCurrentPlayer(prevState.currentPlayer);
-    setWallCounts(prevState.wallCounts);
-    if (lastMove.type === 'wall') {
-      setWalls(prevState.walls);
-    }
-    
-    setMoveHistory(prev => prev.slice(0, -1));
-    gameService.makeMove({ type: 'undo' });
-  }
+  const currentPlayer = gameState?.currentPlayer;
 
   useEffect(() => {
-    // Calculate valid moves whenever the current player or board changes
-    setValidMoves(calculateValidMoves(pawns[currentPlayer], pawns[currentPlayer === 1 ? 2 : 1], walls));
-  }, [currentPlayer, pawns, walls]);
-
-  function initializeBoard() {
-    return Array(BOARD_SIZE).fill().map(() => Array(BOARD_SIZE).fill(null));
-  }
-
-  function calculateValidMoves(pawn, otherPawn, walls) {
-    if (gameState?.isGameOver) return [];
-    
-    const moves = [];
-    const { row, col } = pawn;
-    
-    // Check all four directions
-    const directions = [
-      { row: -1, col: 0 }, // up
-      { row: 1, col: 0 },  // down
-      { row: 0, col: -1 }, // left
-      { row: 0, col: 1 }   // right
-    ];
-
-    directions.forEach(dir => {
-      const newRow = row + dir.row;
-      const newCol = col + dir.col;
-
-      if (isValidPosition(newRow, newCol) && !isBlockedByWall(row, col, newRow, newCol, walls)) {
-        // Check if other pawn is in this position
-        if (newRow === otherPawn.row && newCol === otherPawn.col) {
-          // Jump over pawn if possible
-          const jumpRow = newRow + dir.row;
-          const jumpCol = newCol + dir.col;
-          if (isValidPosition(jumpRow, jumpCol) && !isBlockedByWall(newRow, newCol, jumpRow, jumpCol, walls)) {
-            moves.push({ row: jumpRow, col: jumpCol });
-          }
-        } else {
-          moves.push({ row: newRow, col: newCol });
-        }
-      }
-    });
-
-    return moves;
-  }
-
-  function isValidPosition(row, col) {
-    return row >= 0 && row < BOARD_SIZE && col >= 0 && col < BOARD_SIZE;
-  }
-
-  function isBlockedByWall(fromRow, fromCol, toRow, toCol, walls) {
-    // Moving vertically
-    if (fromCol === toCol && Math.abs(fromRow - toRow) === 1) {
-      const minRow = Math.min(fromRow, toRow);
-      return walls.some(wall => 
-        wall.orientation === 'horizontal' &&
-        wall.row === minRow &&
-        (wall.col === fromCol - 1 || wall.col === fromCol)  // Check both squares covered by wall
-      );
-    }
-    // Moving horizontally
-    if (fromRow === toRow && Math.abs(fromCol - toCol) === 1) {
-      const minCol = Math.min(fromCol, toCol);
-      return walls.some(wall =>
-        wall.orientation === 'vertical' &&
-        wall.col === minCol &&
-        (wall.row === fromRow - 1 || wall.row === fromRow)  // Check both squares covered by wall
-      );
-    }
-    return false;
-  }
-
-  useEffect(() => {
-    gameService.onGameState = (newGameState) => {
-      setGameState(newGameState);
-      if (newGameState.currentPlayer !== currentPlayer) {
-        setSelectedAction('move'); // Reset to move at start of turn
-      }
-      setCurrentPlayer(newGameState.currentPlayer);
-      setPawns(newGameState.pawns);
-      setWalls(newGameState.walls);
-      setWallCounts(newGameState.wallCounts);
-      setMoveHistory([]); // Clear move history on new game state
-      // Update player names while preserving existing ones
-      if (newGameState.playerNames) {
-        setPlayerNames(prevNames => ({
-          ...prevNames,
-          ...newGameState.playerNames
-        }));
-      }
-    };
-
     gameService.onGameJoined = (data) => {
       setPlayerNumber(data.playerNumber);
-      setIsConnected(true);
-      setError(null);
       setGameState(data.gameState);
-      // Initialize player names when joining
-      setPlayerNames(prevNames => ({
-        ...prevNames,
-        [data.playerNumber]: playerName,
-        ...(data.gameState?.playerNames || {})
-      }));
+      setError(null);
     };
 
-    gameService.onError = (message) => {
-      setError(message);
+    gameService.onGameState = (newGameState) => {
+      setGameState(newGameState);
+      setError(null);
     };
+
+    gameService.onError = setError;
 
     gameService.onDisconnect = () => {
-      setIsConnected(false);
       setPlayerNumber(null);
-      setError('Opponent disconnected');
+      setGameState(null);
+      setError('Disconnected from server');
     };
 
     return () => {
@@ -173,187 +42,28 @@ export default function Game() {
     };
   }, []);
 
+  useEffect(() => {
+    // Reset to move at the start of every turn
+    setSelectedAction('move');
+    setWallPreview(null);
+  }, [currentPlayer]);
+
   const handleJoinGame = useCallback(() => {
-    if (!gameId.trim()) {
+    const trimmedGameId = gameId.trim();
+    const trimmedName = playerName.trim();
+    if (!trimmedGameId) {
       setError('Please enter a game ID');
       return;
     }
-    const trimmedName = playerName.trim();
     if (!trimmedName) {
       setError('Please enter your name');
       return;
     }
-    // Send player name with connection and store it locally
-    gameService.connect(gameId, trimmedName);
+    setError(null);
+    gameService.connect(trimmedGameId, trimmedName);
   }, [gameId, playerName]);
 
-  function isWithinWallPlacementBounds(row, col) {
-    return row >= 0 && row < BOARD_SIZE - 1 && col >= 0 && col < BOARD_SIZE - 1;
-  }
-
-  function handleSquareClick(row, col) {
-    if (!isConnected) return;
-    if (currentPlayer !== playerNumber) return;
-    if (gameState?.isGameOver) return;
-
-    if (selectedAction === 'move') {
-      const isValidMove = validMoves.some(move => move.row === row && move.col === col);
-      if (isValidMove) {
-        // Store current state for undo
-        const move = {
-          type: 'move',
-          row,
-          col,
-          playerName: playerNames[currentPlayer],
-          prevState: {
-            pawns: { ...pawns },
-            currentPlayer,
-            wallCounts: { ...wallCounts }
-          }
-        };
-        
-        // Make move
-        gameService.makeMove(move);
-        setMoveHistory(prev => [...prev, move]);
-        
-        // Check win condition
-        if ((currentPlayer === 1 && row === 0) || (currentPlayer === 2 && row === 8)) {
-          return;
-        }
-        
-        // Switch turns and reset action to move
-        setCurrentPlayer(prev => prev === 1 ? 2 : 1);
-        setSelectedAction('move');
-      }
-    } else if (selectedAction === 'wall-h' && isWithinWallPlacementBounds(row, col)) {
-      handleWallPlacement(row, col, 'horizontal');
-    } else if (selectedAction === 'wall-v' && isWithinWallPlacementBounds(row, col)) {
-      handleWallPlacement(row, col, 'vertical');
-    }
-  }
-
-  function handleWallPlacement(row, col, orientation) {
-    if (gameState?.isGameOver) return;
-    if ((selectedAction === 'wall-h' || selectedAction === 'wall-v') && wallCounts[currentPlayer] > 0) {
-      // Check if wall placement is valid
-      const newWall = { row, col, orientation };
-      if (isValidWallPlacement(newWall)) {
-        const move = {
-          type: 'wall',
-          ...newWall,
-          playerName: playerNames[currentPlayer],
-          prevState: {
-            walls: [...walls],
-            currentPlayer,
-            wallCounts: { ...wallCounts }
-          }
-        };
-        gameService.makeMove(move);
-        setMoveHistory(prev => [...prev, move]);
-        setSelectedAction('move');
-      }
-    }
-  }
-
-  function isValidWallPlacement(newWall) {
-    // Check if wall overlaps with existing walls
-    const overlaps = walls.some(wall => {
-      // Check overlap with same orientation walls
-      if (wall.orientation === newWall.orientation) {
-        if (wall.orientation === 'horizontal') {
-          return wall.row === newWall.row && 
-                 Math.abs(wall.col - newWall.col) <= 1;
-        } else {
-          return wall.col === newWall.col && 
-                 Math.abs(wall.row - newWall.row) <= 1;
-        }
-      }
-      // Check intersection between horizontal and vertical walls
-      else {
-        if (newWall.orientation === 'horizontal') {
-          // Horizontal wall intersecting vertical wall
-          return wall.col === newWall.col && wall.row === newWall.row;
-        } else {
-          // Vertical wall intersecting horizontal wall
-          return wall.row === newWall.row && wall.col === newWall.col;
-        }
-      }
-    });
-
-    if (overlaps) return false;
-
-    // Check if both players still have a path to their goals
-    const wallsCopy = [...walls, newWall];
-    return hasPathToGoal(pawns[1], 0, wallsCopy) && 
-           hasPathToGoal(pawns[2], 8, wallsCopy);
-  }
-
-  function hasPathToGoal(start, targetRow, walls) {
-    const visited = new Set();
-    const queue = [[start.row, start.col]];
-    
-    while (queue.length > 0) {
-      const [row, col] = queue.shift();
-      const key = `${row},${col}`;
-      
-      if (visited.has(key)) continue;
-      visited.add(key);
-      
-      if (row === targetRow) return true;
-      
-      // Check all adjacent squares
-      const directions = [[-1, 0], [1, 0], [0, -1], [0, 1]];
-      for (const [dRow, dCol] of directions) {
-        const newRow = row + dRow;
-        const newCol = col + dCol;
-        
-        if (isValidPosition(newRow, newCol) && 
-            !isBlockedByWall(row, col, newRow, newCol, walls)) {
-          queue.push([newRow, newCol]);
-        }
-      }
-    }
-    
-    return false;
-  }
-
-  function handleSquareHover(row, col) {
-    if (gameState?.isGameOver) return;
-    if (selectedAction === 'wall-h' && isWithinWallPlacementBounds(row, col)) {
-      const previewWall = { row, col, orientation: 'horizontal' };
-      if (isValidWallPlacement(previewWall)) {
-        setWallPreview(previewWall);
-      }
-    } else if (selectedAction === 'wall-v' && isWithinWallPlacementBounds(row, col)) {
-      const previewWall = { row, col, orientation: 'vertical' };
-      if (isValidWallPlacement(previewWall)) {
-        setWallPreview(previewWall);
-      }
-    }
-  }
-
-  function isSamePosition(a, b) {
-    return a.row === b.row && a.col === b.col;
-  }
-
-  function getSquareClassName(row, col) {
-    const classNames = ['square'];
-    if (!gameState?.isGameOver && validMoves.some(move => move.row === row && move.col === col)) {
-      classNames.push('valid-move');
-    }
-    if (showLastMove && lastMove.type === 'move') {
-      if (isSamePosition(lastMove.from, { row, col })) classNames.push('last-move-from');
-      if (isSamePosition(lastMove.to, { row, col })) classNames.push('last-move-to');
-    }
-    return classNames.join(' ');
-  }
-
-  function isLastMoveWall(wall) {
-    return showLastMove && lastMove.type === 'wall' &&
-      isSamePosition(lastMove, wall) && lastMove.orientation === wall.orientation;
-  }
-
-  if (!isConnected) {
+  if (!gameState) {
     return (
       <div className="game">
         <div className="game-info">
@@ -381,98 +91,175 @@ export default function Game() {
     );
   }
 
+  const { pawns, walls, playerNames, wallCounts, activePlayers, lastMove, isGameOver } = gameState;
+  const seats = Object.keys(playerNames).map(Number).sort((a, b) => a - b);
+  const isMyTurn = currentPlayer === playerNumber && activePlayers.length >= 2 && !isGameOver && !gameState.undoVote;
+  const validMoves = isMyTurn ? getValidMoves(gameState, playerNumber) : [];
+  const showLastMove = Boolean(lastMove) && (lastMoveHovered || lastMovePinned);
+
+  function turnMessage() {
+    if (isGameOver) return 'Game Over';
+    if (activePlayers.length < 2) return 'Waiting for at least one more player';
+    if (!gameState.started) return `${playerNames[currentPlayer]} moves first. Joining closes after the first move.`;
+    return `${playerNames[currentPlayer]}'s turn`;
+  }
+
+  function wallAt(row, col) {
+    return { row, col, orientation: selectedAction === 'wall-h' ? 'horizontal' : 'vertical' };
+  }
+
+  function handleSquareClick(row, col) {
+    if (!isMyTurn) return;
+
+    if (selectedAction === 'move') {
+      if (validMoves.some(move => move.row === row && move.col === col)) {
+        gameService.makeMove({ type: 'move', row, col });
+      }
+      return;
+    }
+
+    const wall = wallAt(row, col);
+    if (wallCounts[playerNumber] > 0 && isValidWallPlacement(gameState, wall)) {
+      gameService.makeMove({ type: 'wall', ...wall });
+      setSelectedAction('move');
+      setWallPreview(null);
+    }
+  }
+
+  function handleSquareHover(row, col) {
+    if (!isMyTurn || selectedAction === 'move') return;
+    const wall = wallAt(row, col);
+    setWallPreview(isValidWallPlacement(gameState, wall) ? wall : null);
+  }
+
+  function isSamePosition(a, b) {
+    return a.row === b.row && a.col === b.col;
+  }
+
+  function pawnAt(row, col) {
+    return seats.find(seat => isSamePosition(pawns[seat], { row, col }));
+  }
+
+  function getSquareClassName(row, col) {
+    const classNames = ['square'];
+    if (validMoves.some(move => move.row === row && move.col === col)) {
+      classNames.push('valid-move');
+    }
+    if (showLastMove && lastMove.type === 'move') {
+      if (isSamePosition(lastMove.from, { row, col })) classNames.push('last-move-from');
+      if (isSamePosition(lastMove.to, { row, col })) classNames.push('last-move-to');
+    }
+    return classNames.join(' ');
+  }
+
+  function isLastMoveWall(wall) {
+    return showLastMove && lastMove.type === 'wall' &&
+      isSamePosition(lastMove, wall) && lastMove.orientation === wall.orientation;
+  }
+
   return (
-    <div className="game">
-      <div className="player-info">
-        You are {playerNames[playerNumber]} (Player {playerNumber}). Your goal: reach the {GOAL_SIDES[playerNumber]} row.
-      </div>
-      <div className="game-info">
-        {gameState?.gameStatus && <div className="game-status">{gameState.gameStatus}</div>}
-        <div>{gameState?.isGameOver ? "Game Over" : `${playerNames[currentPlayer]}'s turn`}</div>
-        <div>Walls remaining: {playerNames[1]}: {wallCounts[1]}, {playerNames[2]}: {wallCounts[2]}</div>
-        <div className="action-buttons">
-          <button 
-            onClick={() => setSelectedAction('move')}
-            className={selectedAction === 'move' ? 'active' : ''}
-          >
-            Move
-          </button>
-          <button
-            onClick={handleUndo}
-            disabled={moveHistory.length === 0 || currentPlayer !== playerNumber || gameState?.isGameOver}
-          >
-            Undo
-          </button>
-          <button
-            onClick={() => setLastMovePinned(prev => !prev)}
-            onMouseEnter={() => setLastMoveHovered(true)}
-            onMouseLeave={() => setLastMoveHovered(false)}
-            className={lastMovePinned ? 'active' : ''}
-            disabled={!lastMove}
-          >
-            Show Last Move
-          </button>
+    <>
+      <div className="game-id">Game ID: {gameState.gameId}</div>
+      <div className="game">
+        <div className="player-info">
+          You are {playerNames[playerNumber]} (Player {playerNumber}). Your goal: reach the {SEATS[playerNumber].goalLabel}.
         </div>
-      </div>
-      <div className={`board ${currentPlayer !== playerNumber || gameState?.isGameOver ? 'not-your-turn' : ''} ${gameState?.isGameOver ? 'game-over' : ''}`}>
-        {board.map((row, rowIndex) => (
-          <div key={rowIndex} className="board-row">
-            {row.map((_, colIndex) => (
-              <div
-                key={colIndex}
-                className={getSquareClassName(rowIndex, colIndex)}
-                onClick={() => handleSquareClick(rowIndex, colIndex)}
-                onMouseEnter={() => handleSquareHover(rowIndex, colIndex)}
-                onMouseLeave={() => setWallPreview(null)}
-              >
-                {pawns[1].row === rowIndex && pawns[1].col === colIndex && 
-                  <div className="pawn player1" title={playerNames[1]}>{playerNames[1]?.[0] || 'P1'}</div>
-                }
-                {pawns[2].row === rowIndex && pawns[2].col === colIndex && 
-                  <div className="pawn player2" title={playerNames[2]}>{playerNames[2]?.[0] || 'P2'}</div>
-                }
-              </div>
+        <div className="game-info">
+          {error && <div className="error">{error}</div>}
+          {gameState.gameStatus && <div className="game-status">{gameState.gameStatus}</div>}
+          <div>{turnMessage()}</div>
+          <div>
+            Walls left:{' '}
+            {seats.map((seat, index) => (
+              <span key={seat} className={activePlayers.includes(seat) ? '' : 'player-left'}>
+                {index > 0 && ' · '}
+                {playerNames[seat]} {wallCounts[seat]}
+                {!activePlayers.includes(seat) && ' (left)'}
+              </span>
             ))}
           </div>
-        ))}
-        {/* Wall overlay */}
-        <div className="wall-overlay">
-          {walls.map((wall, index) => (
-            <div
-              key={index}
-              className={`wall ${wall.orientation} ${isLastMoveWall(wall) ? 'last-move' : ''}`}
-              style={{
-                top: `${(wall.row * 52) + 2}px`,
-                left: `${(wall.col * 52) + 2}px`
-              }}
-            />
-          ))}
+          <div className="action-buttons">
+            <button
+              onClick={() => setSelectedAction('move')}
+              className={selectedAction === 'move' ? 'active' : ''}
+            >
+              Move
+            </button>
+            <button
+              onClick={() => setLastMovePinned(prev => !prev)}
+              onMouseEnter={() => setLastMoveHovered(true)}
+              onMouseLeave={() => setLastMoveHovered(false)}
+              className={lastMovePinned ? 'active' : ''}
+              disabled={!lastMove}
+            >
+              Show Last Move
+            </button>
+          </div>
         </div>
-        {/* Wall preview */}
-        {wallPreview && (
-          <div
-            className={`wall-preview ${wallPreview.orientation}`}
-            style={{
-              top: `${(wallPreview.row * 52) + 2}px`,
-              left: `${(wallPreview.col * 52) + 2}px`
-            }}
-          />
-        )}
+        <div className="board-area">
+          <div className={`board ${isMyTurn ? '' : 'not-your-turn'} ${isGameOver ? 'game-over' : ''}`}>
+            {BOARD.map((row, rowIndex) => (
+              <div key={rowIndex} className="board-row">
+                {row.map((_, colIndex) => {
+                  const seat = pawnAt(rowIndex, colIndex);
+                  return (
+                    <div
+                      key={colIndex}
+                      className={getSquareClassName(rowIndex, colIndex)}
+                      onClick={() => handleSquareClick(rowIndex, colIndex)}
+                      onMouseEnter={() => handleSquareHover(rowIndex, colIndex)}
+                      onMouseLeave={() => setWallPreview(null)}
+                    >
+                      {seat && (
+                        <div className={`pawn player${seat}`} title={playerNames[seat]}>
+                          {playerNames[seat]?.[0] || `P${seat}`}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            ))}
+            {/* Wall overlay */}
+            <div className="wall-overlay">
+              {walls.map((wall, index) => (
+                <div
+                  key={index}
+                  className={`wall ${wall.orientation} ${isLastMoveWall(wall) ? 'last-move' : ''}`}
+                  style={{
+                    top: `${(wall.row * SQUARE_SIZE) + 2}px`,
+                    left: `${(wall.col * SQUARE_SIZE) + 2}px`
+                  }}
+                />
+              ))}
+            </div>
+            {/* Wall preview */}
+            {wallPreview && (
+              <div
+                className={`wall-preview ${wallPreview.orientation}`}
+                style={{
+                  top: `${(wallPreview.row * SQUARE_SIZE) + 2}px`,
+                  left: `${(wallPreview.col * SQUARE_SIZE) + 2}px`
+                }}
+              />
+            )}
+          </div>
+        </div>
+        <div className="wall-actions">
+          <button
+            onClick={() => setSelectedAction('wall-h')}
+            className={selectedAction === 'wall-h' ? 'active' : ''}
+          >
+            Horizontal Wall
+          </button>
+          <button
+            onClick={() => setSelectedAction('wall-v')}
+            className={selectedAction === 'wall-v' ? 'active' : ''}
+          >
+            Vertical Wall
+          </button>
+        </div>
       </div>
-      <div className="wall-actions">
-        <button 
-          onClick={() => setSelectedAction('wall-h')}
-          className={selectedAction === 'wall-h' ? 'active' : ''}
-        >
-          Horizontal Wall
-        </button>
-        <button 
-          onClick={() => setSelectedAction('wall-v')}
-          className={selectedAction === 'wall-v' ? 'active' : ''}
-        >
-          Vertical Wall
-        </button>
-      </div>
-    </div>
+    </>
   );
-  }
+}
