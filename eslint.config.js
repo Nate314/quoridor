@@ -20,18 +20,12 @@ const plugins = {
 export default tseslint.config(
   { ignores: ['dist'] },
   {
-    files: ['**/*.{js,jsx}'],
+    files: ['**/*.js'],
     extends: [js.configs.recommended],
     languageOptions: {
       ecmaVersion: 'latest',
-      globals: globals.browser,
-      parserOptions: { ecmaFeatures: { jsx: true } },
+      globals: globals.node,
       sourceType: 'module',
-    },
-    plugins,
-    rules: {
-      ...reactRules,
-      'no-unused-vars': ['error', { varsIgnorePattern: '^[A-Z_]' }],
     },
   },
   {

@@ -2,18 +2,21 @@ import { useState, useEffect, useCallback } from 'react';
 import gameService from '../services/gameService';
 import UndoVote from './UndoVote';
 import { BOARD_SIZE, SEATS, getValidMoves, isValidWallPlacement } from '../../shared/rules.ts';
+import type { PlacedWall, Position, PublicGameState, Seat, Wall } from '../../shared/types.ts';
+
+type Action = 'move' | 'wall-h' | 'wall-v';
 
 const SQUARE_SIZE = 52; // 50px square plus its 1px borders
-const BOARD = Array.from({ length: BOARD_SIZE }, () => Array(BOARD_SIZE).fill(null));
+const BOARD = Array.from({ length: BOARD_SIZE }, () => Array<null>(BOARD_SIZE).fill(null));
 
 export default function Game() {
   const [gameId, setGameId] = useState('');
   const [playerName, setPlayerName] = useState('');
-  const [playerNumber, setPlayerNumber] = useState(null);
-  const [gameState, setGameState] = useState(null);
-  const [error, setError] = useState(null);
-  const [selectedAction, setSelectedAction] = useState('move'); // 'move', 'wall-h', or 'wall-v'
-  const [wallPreview, setWallPreview] = useState(null);
+  const [playerNumber, setPlayerNumber] = useState<Seat | null>(null);
+  const [gameState, setGameState] = useState<PublicGameState | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [selectedAction, setSelectedAction] = useState<Action>('move');
+  const [wallPreview, setWallPreview] = useState<Wall | null>(null);
   const [lastMoveHovered, setLastMoveHovered] = useState(false);
   const [lastMovePinned, setLastMovePinned] = useState(false);
   const currentPlayer = gameState?.currentPlayer;
@@ -64,7 +67,7 @@ export default function Game() {
     gameService.connect(trimmedGameId, trimmedName);
   }, [gameId, playerName]);
 
-  if (!gameState) {
+  if (!gameState || playerNumber === null) {
     return (
       <div className="game">
         <div className="game-info">
@@ -100,19 +103,20 @@ export default function Game() {
   const validMoves = isMyTurn ? getValidMoves(gameState, playerNumber) : [];
   const showLastMove = Boolean(lastMove) && (lastMoveHovered || lastMovePinned);
 
-  function turnMessage() {
+  function turnMessage(): string {
+    const currentName = currentPlayer == null ? '' : playerNames[currentPlayer];
     if (isGameOver) return 'Game Over';
     if (activePlayers.length < 2) return 'Waiting for at least one more player';
-    if (!gameState.started) return `${playerNames[currentPlayer]} moves first. Joining closes after the first move.`;
-    return `${playerNames[currentPlayer]}'s turn`;
+    if (!gameState?.started) return `${currentName} moves first. Joining closes after the first move.`;
+    return `${currentName}'s turn`;
   }
 
-  function wallAt(row, col) {
+  function wallAt(row: number, col: number): Wall {
     return { row, col, orientation: selectedAction === 'wall-h' ? 'horizontal' : 'vertical' };
   }
 
-  function handleSquareClick(row, col) {
-    if (!isMyTurn) return;
+  function handleSquareClick(row: number, col: number) {
+    if (!isMyTurn || !gameState || playerNumber === null) return;
 
     if (selectedAction === 'move') {
       if (validMoves.some(move => move.row === row && move.col === col)) {
@@ -129,34 +133,34 @@ export default function Game() {
     }
   }
 
-  function handleSquareHover(row, col) {
-    if (!isMyTurn || selectedAction === 'move') return;
+  function handleSquareHover(row: number, col: number) {
+    if (!isMyTurn || !gameState || selectedAction === 'move') return;
     const wall = wallAt(row, col);
     setWallPreview(isValidWallPlacement(gameState, wall) ? wall : null);
   }
 
-  function isSamePosition(a, b) {
+  function isSamePosition(a: Position, b: Position): boolean {
     return a.row === b.row && a.col === b.col;
   }
 
-  function pawnAt(row, col) {
+  function pawnAt(row: number, col: number): Seat | undefined {
     return seats.find(seat => isSamePosition(pawns[seat], { row, col }));
   }
 
-  function getSquareClassName(row, col) {
+  function getSquareClassName(row: number, col: number): string {
     const classNames = ['square'];
     if (validMoves.some(move => move.row === row && move.col === col)) {
       classNames.push('valid-move');
     }
-    if (showLastMove && lastMove.type === 'move') {
+    if (showLastMove && lastMove?.type === 'move') {
       if (isSamePosition(lastMove.from, { row, col })) classNames.push('last-move-from');
       if (isSamePosition(lastMove.to, { row, col })) classNames.push('last-move-to');
     }
     return classNames.join(' ');
   }
 
-  function isLastMoveWall(wall) {
-    return showLastMove && lastMove.type === 'wall' &&
+  function isLastMoveWall(wall: PlacedWall): boolean {
+    return showLastMove && lastMove?.type === 'wall' &&
       isSamePosition(lastMove, wall) && lastMove.orientation === wall.orientation;
   }
 

@@ -1,4 +1,14 @@
-export default function UndoVote({ vote, playerNumber, activePlayers, playerNames, onVote }) {
+import type { Seat, UndoVote as UndoVoteState } from '../../shared/types.ts';
+
+type UndoVoteProps = {
+  vote: UndoVoteState;
+  playerNumber: Seat;
+  activePlayers: Seat[];
+  playerNames: Record<Seat, string>;
+  onVote: (approve: boolean) => void;
+};
+
+export default function UndoVote({ vote, playerNumber, activePlayers, playerNames, onVote }: UndoVoteProps) {
   const canVote = activePlayers.includes(playerNumber) && !vote.votes[playerNumber];
 
   return (
