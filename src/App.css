@@ -1,10 +1,78 @@
+:root {
+  color-scheme: light;
+  color: #FFF;
+  --page-bg-start: #A1887F;
+  --page-bg-end: #8D6E63;
+  --panel-bg: rgba(62, 39, 35, 0.95);
+  --banner-bg: rgba(93, 64, 55, 0.8);
+  --input-bg: rgba(255, 255, 255, 0.95);
+  --input-text: #333;
+  --input-placeholder: #666;
+  --button-bg: #5D4037;
+  --button-hover-bg: #4E342E;
+  --button-active-bg: #3E2723;
+  --status-bg: #ecf0f1;
+  --status-text: #2c3e50;
+  --board-bg: #8D6E63;
+  --board-frame: #5D4037;
+  --board-frame-outer: #795548;
+  --board-grain: rgba(255, 255, 255, 0.1);
+  --wall: #3E2723;
+  --wall-preview: rgba(62, 39, 35, 0.4);
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --page-bg-start: #3E2C26;
+  --page-bg-end: #241915;
+  --panel-bg: rgba(30, 20, 17, 0.95);
+  --banner-bg: rgba(50, 35, 30, 0.9);
+  --input-bg: #2E211D;
+  --input-text: #EEE;
+  --input-placeholder: #AAA;
+  --button-bg: #4A332C;
+  --button-hover-bg: #5D4037;
+  --button-active-bg: #1A110E;
+  --status-bg: #4E342E;
+  --status-text: #FFF8E1;
+  --board-bg: #4A3731;
+  --board-frame: #5D4037;
+  --board-frame-outer: #4E342E;
+  --board-grain: rgba(255, 255, 255, 0.05);
+  --wall: #BCAAA4;
+  --wall-preview: rgba(188, 170, 164, 0.4);
+}
+
 body, html {
   margin: 0;
   padding: 0;
   height: 100%;
   overflow: hidden;
-  background: linear-gradient(45deg, #A1887F, #8D6E63);
+  background: linear-gradient(45deg, var(--page-bg-start), var(--page-bg-end));
   width: 100%;
+}
+
+.theme-toggle {
+  position: fixed;
+  top: 1rem;
+  right: 1rem;
+  z-index: 10;
+  width: 2.5rem;
+  height: 2.5rem;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: var(--button-bg);
+  font-size: 1.2rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.theme-toggle:hover {
+  background: var(--button-hover-bg);
 }
 
 .game {
@@ -25,7 +93,7 @@ body, html {
   text-align: center;
   color: #FFF;
   text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.3);
-  background: rgba(62, 39, 35, 0.95);
+  background: var(--panel-bg);
   padding: 20px;
   border-radius: 8px;
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
@@ -62,21 +130,21 @@ body, html {
   padding: 12px;
   border: none;
   border-radius: 4px;
-  background: rgba(255, 255, 255, 0.95);
+  background: var(--input-bg);
   width: 100%;
   font-size: 14px;
   box-sizing: border-box;
-  color: #333;
+  color: var(--input-text);
 }
 
 .join-form input::placeholder {
-  color: #666;
+  color: var(--input-placeholder);
 }
 
 .join-form button {
   padding: 10px;
   width: 100%;
-  background: #5D4037;
+  background: var(--button-bg);
   color: white;
   border: none;
   border-radius: 4px;
@@ -86,7 +154,7 @@ body, html {
 }
 
 .join-form button:hover {
-  background: #4E342E;
+  background: var(--button-hover-bg);
 }
 
 .error {
@@ -102,7 +170,7 @@ body, html {
   font-size: 18px;
   color: white;
   text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.3);
-  background: rgba(93, 64, 55, 0.8);
+  background: var(--banner-bg);
   padding: 10px 20px;
   border-radius: 4px;
 }
@@ -122,7 +190,7 @@ body, html {
   font-size: 14px;
   border: none;
   border-radius: 4px;
-  background: #5D4037;
+  background: var(--button-bg);
   color: #fff;
   cursor: pointer;
   transition: all 0.3s ease;
@@ -130,13 +198,13 @@ body, html {
 }
 
 .game-info button:hover {
-  background: #4E342E;
+  background: var(--button-hover-bg);
   transform: translateY(-1px);
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
 }
 
 .game-info button.active {
-  background: #3E2723;
+  background: var(--button-active-bg);
   color: white;
   box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.3);
   transform: translateY(1px);
@@ -150,22 +218,22 @@ body, html {
 
 .board {
   position: relative;
-  border: 8px solid #5D4037;
-  background: #8D6E63;
+  border: 8px solid var(--board-frame);
+  background: var(--board-bg);
   width: fit-content;
   box-shadow: 0 0 20px rgba(0, 0, 0, 0.3);
-  background-image: 
+  background-image:
     repeating-linear-gradient(
       90deg,
-      rgba(255, 255, 255, 0.1),
-      rgba(255, 255, 255, 0.1) 2px,
+      var(--board-grain),
+      var(--board-grain) 2px,
       transparent 2px,
       transparent 15px
     ),
     repeating-linear-gradient(
       0deg,
-      rgba(255, 255, 255, 0.1),
-      rgba(255, 255, 255, 0.1) 2px,
+      var(--board-grain),
+      var(--board-grain) 2px,
       transparent 2px,
       transparent 15px
     );
@@ -178,7 +246,7 @@ body, html {
   left: -8px;
   right: -8px;
   bottom: -8px;
-  background: #795548;
+  background: var(--board-frame-outer);
   z-index: -1;
   border-radius: 4px;
 }
@@ -235,7 +303,7 @@ body, html {
   font-weight: bold;
   color: white;
   text-shadow: 1px 1px 1px rgba(0, 0, 0, 0.5);
-  box-shadow: 
+  box-shadow:
     inset 0 -2px 5px rgba(0, 0, 0, 0.5),
     0 2px 4px rgba(0, 0, 0, 0.3);
 }
@@ -259,7 +327,7 @@ body, html {
 
 .wall {
   position: absolute;
-  background: #3E2723;
+  background: var(--wall);
   pointer-events: all;
   box-shadow: 0 0 5px rgba(0, 0, 0, 0.3);
 }
@@ -284,7 +352,7 @@ body, html {
 /* Wall preview styles */
 .wall-preview {
   position: absolute;
-  background: rgba(62, 39, 35, 0.4);
+  background: var(--wall-preview);
   pointer-events: none;
   z-index: 1;
   box-shadow: 0 0 10px rgba(62, 39, 35, 0.2);
@@ -314,7 +382,7 @@ body, html {
   font-size: 14px;
   border: none;
   border-radius: 4px;
-  background: #5D4037;
+  background: var(--button-bg);
   color: #fff;
   cursor: pointer;
   transition: all 0.3s ease;
@@ -323,13 +391,13 @@ body, html {
 }
 
 .wall-actions button:hover {
-  background: #4E342E;
+  background: var(--button-hover-bg);
   transform: translateY(-1px);
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
 }
 
 .wall-actions button.active {
-  background: #3E2723;
+  background: var(--button-active-bg);
   color: white;
   box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.3);
   transform: translateY(1px);
@@ -345,8 +413,8 @@ body, html {
 .game-status {
   font-size: 1.2em;
   font-weight: bold;
-  color: #2c3e50;
-  background-color: #ecf0f1;
+  color: var(--status-text);
+  background-color: var(--status-bg);
   padding: 10px 20px;
   margin: 10px 0;
   border-radius: 5px;
