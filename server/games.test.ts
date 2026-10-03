@@ -1,27 +1,40 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createGameManager } from './games.js';
+import { createGameManager } from './games.ts';
+import type { Move, PublicGameState, Result } from '../shared/types.ts';
 
-const step = (row, col) => ({ type: 'move', row, col });
+type Manager = ReturnType<typeof createGameManager>;
 
-function gameWith(...names) {
+const step = (row: number, col: number): Move => ({ type: 'move', row, col });
+
+function gameWith(...names: string[]): Manager {
   const manager = createGameManager();
   for (const name of names) manager.join('g1', name);
   return manager;
 }
 
-function ok(result) {
-  assert.equal(result.error, undefined, result.error);
+function ok(result: Result<PublicGameState>): PublicGameState {
+  if ('error' in result) assert.fail(result.error);
+  return result.state;
+}
+
+function joined(result: ReturnType<Manager['join']>) {
+  if ('error' in result) assert.fail(result.error);
+  return result;
+}
+
+function left(result: ReturnType<Manager['leave']>): PublicGameState {
+  assert.ok(result, 'expected the game to still exist');
   return result.state;
 }
 
 test('join trims the game ID and name and rejects blanks', () => {
   const manager = createGameManager();
-  const first = manager.join('  g1 ', ' Alice ');
+  const first = joined(manager.join('  g1 ', ' Alice '));
   assert.equal(first.gameId, 'g1');
   assert.equal(first.seat, 1);
   assert.equal(first.state.playerNames[1], 'Alice');
-  assert.equal(manager.join('g1', 'Bob').seat, 2);
+  assert.equal(joined(manager.join('g1', 'Bob')).seat, 2);
   assert.deepEqual(manager.join('   ', 'X'), { error: 'Please enter a game ID' });
   assert.deepEqual(manager.join('g1', '   '), { error: 'Please enter your name' });
 });
@@ -36,8 +49,8 @@ test('join is refused at four players and after the first move', () => {
 
 test('leaving the lobby frees the seat and the last one out deletes the game', () => {
   const manager = gameWith('A', 'B');
-  assert.deepEqual(manager.leave('g1', 1).state.activePlayers, [2]);
-  assert.equal(manager.join('g1', 'C').seat, 1);
+  assert.deepEqual(left(manager.leave('g1', 1)).activePlayers, [2]);
+  assert.equal(joined(manager.join('g1', 'C')).seat, 1);
   manager.leave('g1', 1);
   assert.equal(manager.leave('g1', 2), null);
   assert.equal(manager.getState('g1'), undefined);
@@ -45,7 +58,7 @@ test('leaving the lobby frees the seat and the last one out deletes the game', (
 
 test('moves are validated and recorded for undo', () => {
   const manager = gameWith('A', 'B');
-  assert.equal(manager.getState('g1').undoAvailable, false);
+  assert.equal(manager.getState('g1')?.undoAvailable, false);
   assert.deepEqual(manager.move('g1', 2, step(1, 4)), { error: 'Not your turn' });
   assert.deepEqual(manager.move('g1', 3, step(1, 4)), { error: 'You are not in this game' });
   assert.deepEqual(manager.move('nope', 1, step(7, 4)), { error: 'Game not found' });
@@ -68,13 +81,13 @@ test('an undo approved by everyone restores the previous turn', () => {
   assert.equal(restored.undoVote, null);
   assert.deepEqual(restored.pawns[2], { row: 0, col: 4 });
   assert.equal(restored.currentPlayer, 2);
-  assert.deepEqual(restored.lastMove.to, { row: 7, col: 4 });
+  assert.deepEqual(restored.lastMove, { type: 'move', playerNumber: 1, from: { row: 8, col: 4 }, to: { row: 7, col: 4 } });
   assert.equal(restored.gameStatus, 'Last turn undone');
 
   // A late or duplicate approval must not undo a second turn
   assert.deepEqual(manager.voteUndo('g1', 3, true), { error: 'No undo vote in progress' });
-  assert.deepEqual(manager.getState('g1').pawns[1], { row: 7, col: 4 });
-  assert.equal(manager.getState('g1').undoAvailable, true);
+  assert.deepEqual(manager.getState('g1')?.pawns[1], { row: 7, col: 4 });
+  assert.equal(manager.getState('g1')?.undoAvailable, true);
 });
 
 test('one decline cancels the vote', () => {
@@ -104,7 +117,7 @@ test('a player leaving during a vote no longer counts', () => {
   ok(manager.move('g1', 1, step(7, 4)));
   ok(manager.requestUndo('g1', 1));
   ok(manager.voteUndo('g1', 2, true));
-  const after = manager.leave('g1', 3).state;
+  const after = left(manager.leave('g1', 3));
   assert.equal(after.undoVote, null);
   assert.deepEqual(after.pawns[1], { row: 8, col: 4 });
   assert.deepEqual(after.activePlayers, [1, 2]);
@@ -159,7 +172,7 @@ test('the winning move can be undone', () => {
   assert.equal(restored.currentPlayer, 1);
 });
 
-function wonGame() {
+function wonGame(): Manager {
   const manager = gameWith('A', 'B');
   let p2Col = 4;
   for (let row = 7; row >= 1; row--) {
@@ -174,7 +187,7 @@ function wonGame() {
 test('an undo vote after a win is cancelled when the winner leaves', () => {
   const manager = wonGame();
   ok(manager.requestUndo('g1', 2));
-  const state = manager.leave('g1', 1).state;
+  const state = left(manager.leave('g1', 1));
   assert.equal(state.undoVote, null);
   assert.equal(state.isGameOver, true);
   assert.equal(state.winner, 1);
@@ -184,7 +197,7 @@ test('an undo vote after a win is cancelled when the winner leaves', () => {
 test('an undo vote after a win is cancelled when the requester leaves', () => {
   const manager = wonGame();
   ok(manager.requestUndo('g1', 2));
-  const state = manager.leave('g1', 2).state;
+  const state = left(manager.leave('g1', 2));
   assert.equal(state.undoVote, null);
   assert.equal(state.isGameOver, true);
   assert.equal(state.winner, 1);
@@ -192,7 +205,7 @@ test('an undo vote after a win is cancelled when the requester leaves', () => {
 
 test('join caps the name and the game ID at 20 characters', () => {
   const manager = createGameManager();
-  const joined = manager.join('g'.repeat(30), 'n'.repeat(30));
-  assert.equal(joined.gameId, 'g'.repeat(20));
-  assert.equal(joined.state.playerNames[1], 'n'.repeat(20));
+  const result = joined(manager.join('g'.repeat(30), 'n'.repeat(30)));
+  assert.equal(result.gameId, 'g'.repeat(20));
+  assert.equal(result.state.playerNames[1], 'n'.repeat(20));
 });

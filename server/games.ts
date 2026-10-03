@@ -1,16 +1,21 @@
 import { createGameState, addPlayer, removePlayer, applyMove, nextActivePlayer } from '../shared/rules.ts';
+import type { GameState, PublicGameState, Result, Seat } from '../shared/types.ts';
 
 const MAX_NAME_LENGTH = 20; // applies to player names and game IDs
 
+type Game = { state: GameState; history: GameState[] };
+
+export type JoinResult = { gameId: string; seat: Seat; state: PublicGameState } | { error: string };
+
 // Holds every game in memory, plus each game's undo history, which is never sent to browsers
 export function createGameManager() {
-  const games = new Map(); // gameId -> { state, history }
+  const games = new Map<string, Game>();
 
-  function view(game) {
+  function view(game: Game): PublicGameState {
     return { ...game.state, undoAvailable: game.history.length > 0 };
   }
 
-  function findPlayer(gameId, seat) {
+  function findPlayer(gameId: string, seat: Seat): { game: Game } | { error: string } {
     const game = games.get(gameId);
     if (!game) return { error: 'Game not found' };
     if (!game.state.activePlayers.includes(seat)) return { error: 'You are not in this game' };
@@ -18,27 +23,31 @@ export function createGameManager() {
   }
 
   // Applies the undo once every connected player has approved
-  function resolveUndoVote(game) {
+  function resolveUndoVote(game: Game): void {
     const { state } = game;
     const vote = state.undoVote;
     if (!vote || !state.activePlayers.every(seat => vote.votes[seat])) return;
 
-    const restored = {
-      ...game.history.pop(),
+    const previous = game.history.pop();
+    if (!previous) return; // Unreachable: a vote only opens when there is history
+
+    const restored: GameState = {
+      ...previous,
       started: true,
       activePlayers: state.activePlayers,
       playerNames: state.playerNames,
       undoVote: null,
       gameStatus: 'Last turn undone'
     };
-    if (!restored.activePlayers.includes(restored.currentPlayer)) {
-      restored.currentPlayer = nextActivePlayer(restored, restored.currentPlayer);
+    const current = restored.currentPlayer;
+    if (current !== null && !restored.activePlayers.includes(current)) {
+      restored.currentPlayer = nextActivePlayer(restored, current);
     }
     game.state = restored;
   }
 
   return {
-    join(gameId, playerName) {
+    join(gameId: unknown, playerName: unknown): JoinResult {
       const id = String(gameId ?? '').trim().slice(0, MAX_NAME_LENGTH);
       const name = String(playerName ?? '').trim().slice(0, MAX_NAME_LENGTH);
       if (!id) return { error: 'Please enter a game ID' };
@@ -46,16 +55,16 @@ export function createGameManager() {
 
       const game = games.get(id) ?? { state: createGameState(id), history: [] };
       const result = addPlayer(game.state, name);
-      if (result.error) return result;
+      if ('error' in result) return result;
 
       game.state = result.state;
       games.set(id, game);
       return { gameId: id, seat: result.seat, state: view(game) };
     },
 
-    leave(gameId, seat) {
+    leave(gameId: string, seat: Seat): { state: PublicGameState } | null {
       const found = findPlayer(gameId, seat);
-      if (found.error) return null;
+      if ('error' in found) return null;
       const { game } = found;
 
       game.state = removePlayer(game.state, seat);
@@ -67,22 +76,22 @@ export function createGameManager() {
       return { state: view(game) };
     },
 
-    move(gameId, seat, move) {
+    move(gameId: string, seat: Seat, move: unknown): Result<PublicGameState> {
       const found = findPlayer(gameId, seat);
-      if (found.error) return found;
+      if ('error' in found) return found;
       const { game } = found;
 
       const result = applyMove(game.state, seat, move);
-      if (result.error) return result;
+      if ('error' in result) return result;
 
       game.history.push(game.state);
       game.state = result.state;
       return { state: view(game) };
     },
 
-    requestUndo(gameId, seat) {
+    requestUndo(gameId: string, seat: Seat): Result<PublicGameState> {
       const found = findPlayer(gameId, seat);
-      if (found.error) return found;
+      if ('error' in found) return found;
       const { game } = found;
       const { state } = game;
 
@@ -98,9 +107,9 @@ export function createGameManager() {
       return { state: view(game) };
     },
 
-    voteUndo(gameId, seat, approve) {
+    voteUndo(gameId: string, seat: Seat, approve: unknown): Result<PublicGameState> {
       const found = findPlayer(gameId, seat);
-      if (found.error) return found;
+      if ('error' in found) return found;
       const { game } = found;
       const { state } = game;
       const vote = state.undoVote;
@@ -118,7 +127,7 @@ export function createGameManager() {
       return { state: view(game) };
     },
 
-    getState(gameId) {
+    getState(gameId: string): PublicGameState | undefined {
       const game = games.get(gameId);
       return game && view(game);
     }
