@@ -3,6 +3,7 @@ import gameService from '../services/gameService';
 
 const BOARD_SIZE = 9;
 const INITIAL_WALL_COUNT = 10;
+const GOAL_SIDES = { 1: 'top', 2: 'bottom' };
 
 export default function Game() {
   const [gameId, setGameId] = useState('');
@@ -30,6 +31,10 @@ export default function Game() {
   const [validMoves, setValidMoves] = useState([]);
   const [wallPreview, setWallPreview] = useState(null);
   const [moveHistory, setMoveHistory] = useState([]); // Track moves for undo
+  const [lastMoveHovered, setLastMoveHovered] = useState(false);
+  const [lastMovePinned, setLastMovePinned] = useState(false);
+  const lastMove = gameState?.lastMove;
+  const showLastMove = Boolean(lastMove) && (lastMoveHovered || lastMovePinned);
 
   // Function to handle undo
   function handleUndo() {
@@ -327,6 +332,27 @@ export default function Game() {
     }
   }
 
+  function isSamePosition(a, b) {
+    return a.row === b.row && a.col === b.col;
+  }
+
+  function getSquareClassName(row, col) {
+    const classNames = ['square'];
+    if (!gameState?.isGameOver && validMoves.some(move => move.row === row && move.col === col)) {
+      classNames.push('valid-move');
+    }
+    if (showLastMove && lastMove.type === 'move') {
+      if (isSamePosition(lastMove.from, { row, col })) classNames.push('last-move-from');
+      if (isSamePosition(lastMove.to, { row, col })) classNames.push('last-move-to');
+    }
+    return classNames.join(' ');
+  }
+
+  function isLastMoveWall(wall) {
+    return showLastMove && lastMove.type === 'wall' &&
+      isSamePosition(lastMove, wall) && lastMove.orientation === wall.orientation;
+  }
+
   if (!isConnected) {
     return (
       <div className="game">
@@ -358,7 +384,7 @@ export default function Game() {
   return (
     <div className="game">
       <div className="player-info">
-        You are {playerNames[playerNumber]} (Player {playerNumber})
+        You are {playerNames[playerNumber]} (Player {playerNumber}). Your goal: reach the {GOAL_SIDES[playerNumber]} row.
       </div>
       <div className="game-info">
         {gameState?.gameStatus && <div className="game-status">{gameState.gameStatus}</div>}
@@ -377,6 +403,15 @@ export default function Game() {
           >
             Undo
           </button>
+          <button
+            onClick={() => setLastMovePinned(prev => !prev)}
+            onMouseEnter={() => setLastMoveHovered(true)}
+            onMouseLeave={() => setLastMoveHovered(false)}
+            className={lastMovePinned ? 'active' : ''}
+            disabled={!lastMove}
+          >
+            Show Last Move
+          </button>
         </div>
       </div>
       <div className={`board ${currentPlayer !== playerNumber || gameState?.isGameOver ? 'not-your-turn' : ''} ${gameState?.isGameOver ? 'game-over' : ''}`}>
@@ -385,9 +420,7 @@ export default function Game() {
             {row.map((_, colIndex) => (
               <div
                 key={colIndex}
-                className={`square ${
-                  !gameState?.isGameOver && validMoves.some(move => move.row === rowIndex && move.col === colIndex) ? 'valid-move' : ''
-                }`}
+                className={getSquareClassName(rowIndex, colIndex)}
                 onClick={() => handleSquareClick(rowIndex, colIndex)}
                 onMouseEnter={() => handleSquareHover(rowIndex, colIndex)}
                 onMouseLeave={() => setWallPreview(null)}
@@ -407,7 +440,7 @@ export default function Game() {
           {walls.map((wall, index) => (
             <div
               key={index}
-              className={`wall ${wall.orientation}`}
+              className={`wall ${wall.orientation} ${isLastMoveWall(wall) ? 'last-move' : ''}`}
               style={{
                 top: `${(wall.row * 52) + 2}px`,
                 left: `${(wall.col * 52) + 2}px`
