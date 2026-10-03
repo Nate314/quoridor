@@ -220,3 +220,16 @@ test('moves are blocked while an undo vote is open', () => {
   const state = { ...lobby('A', 'B'), undoVote: { requestedBy: 2, votes: { 2: true } } };
   assert.deepEqual(applyMove(state, 1, step(7, 4)), { error: 'An undo vote is in progress' });
 });
+
+test('a leave after the game is over clears an open undo vote when fewer than two remain', () => {
+  const over = {
+    ...play(lobby('A', 'B'), 1, step(7, 4)),
+    isGameOver: true,
+    winner: 1,
+    undoVote: { requestedBy: 2, votes: { 2: true } }
+  };
+  const state = removePlayer(over, 1);
+  assert.equal(state.undoVote, null);
+  assert.equal(state.isGameOver, true);
+  assert.equal(state.winner, 1);
+});

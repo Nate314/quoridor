@@ -1,5 +1,7 @@
 import { createGameState, addPlayer, removePlayer, applyMove, nextActivePlayer } from '../shared/rules.js';
 
+const MAX_NAME_LENGTH = 20; // applies to player names and game IDs
+
 // Holds every game in memory, plus each game's undo history, which is never sent to browsers
 export function createGameManager() {
   const games = new Map(); // gameId -> { state, history }
@@ -37,8 +39,8 @@ export function createGameManager() {
 
   return {
     join(gameId, playerName) {
-      const id = String(gameId ?? '').trim();
-      const name = String(playerName ?? '').trim();
+      const id = String(gameId ?? '').trim().slice(0, MAX_NAME_LENGTH);
+      const name = String(playerName ?? '').trim().slice(0, MAX_NAME_LENGTH);
       if (!id) return { error: 'Please enter a game ID' };
       if (!name) return { error: 'Please enter your name' };
 

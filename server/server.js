@@ -34,7 +34,12 @@ wss.on('connection', (ws) => {
       console.error('Error parsing message:', error);
       return;
     }
-    handleMessage(ws, data);
+    try {
+      handleMessage(ws, data);
+    } catch (error) {
+      console.error('Error handling message:', error);
+      sendError(ws, 'Something went wrong');
+    }
   });
 
   ws.on('close', () => handleDisconnect(ws));

@@ -5,38 +5,34 @@ flowchart TD
     subgraph "Client Browser"
         UI[React UI Components]
         GS[Game Service]
-        WC[WebSocket Client]
+        SR1[Shared Rules]
 
         UI <--> GS
-        GS <--> WC
+        UI --> SR1
     end
 
     subgraph "Server (Port 3000)"
         ES[Express Server]
         WSS[WebSocket Server]
         GM[Game Manager]
-        GMS[Game State Storage]
+        SR2[Shared Rules]
 
         ES --> |Serves static files| UI
-        WC <--> |WebSocket connection| WSS
         WSS <--> GM
-        GM <--> GMS
-    end
-
-    subgraph "Game State"
-        GMS --> |Stores| Games[(Active Games)]
-        GMS --> |Stores| Players[(Connected Players)]
+        GM --> |Validates with| SR2
     end
 
     subgraph "Client Browser 2"
         UI2[React UI Components]
         GS2[Game Service]
-        WC2[WebSocket Client]
+        SR3[Shared Rules]
 
         UI2 <--> GS2
-        GS2 <--> WC2
-        WC2 <--> WSS
+        UI2 --> SR3
     end
+
+    GS <--> |WebSocket connection| WSS
+    GS2 <--> |WebSocket connection| WSS
 ```
 
 ## Components Description
@@ -79,11 +75,7 @@ flowchart TD
    - Validates and applies moves with the shared rules
    - Keeps each game's undo history and runs unanimous undo votes
    - Skips players who leave mid-game
-
-4. **Game State Storage**
-   - Stores active games and their states
-   - Tracks connected players
-   - Maintains wall counts and positions
+   - Holds games, their state, and undo history in memory
 
 ## Communication Flow
 
@@ -131,10 +123,9 @@ flowchart TD
    ```
    User Input -> React Component
    -> Game Service
-   -> WebSocket Client
    -> Server
-   -> Game Manager
-   -> Game State Update
+   -> Game Manager (validates with Shared Rules)
+   -> Update Game State
    -> Broadcast to Players
    ```
 
@@ -142,9 +133,8 @@ flowchart TD
    ```
    User Input -> React Component
    -> Game Service
-   -> WebSocket Client
    -> Server
-   -> Validate Wall Position
+   -> Game Manager (validates with Shared Rules)
    -> Update Game State
    -> Broadcast to Players
    ```

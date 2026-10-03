@@ -76,12 +76,14 @@ export default function Game() {
                 type="text"
                 value={playerName}
                 onChange={(e) => setPlayerName(e.target.value)}
+                maxLength={20}
                 placeholder="Enter your name"
               />
               <input
                 type="text"
                 value={gameId}
                 onChange={(e) => setGameId(e.target.value)}
+                maxLength={20}
                 placeholder="Enter Game ID to create or join a game"
               />
             </div>
@@ -166,8 +168,11 @@ export default function Game() {
           You are {playerNames[playerNumber]} (Player {playerNumber}). Your goal: reach the {SEATS[playerNumber].goalLabel}.
         </div>
         <div className="game-info">
-          {error && <div className="error">{error}</div>}
-          {gameState.gameStatus && <div className="game-status">{gameState.gameStatus}</div>}
+          {(error || gameState.gameStatus) && (
+            <div className={error ? 'game-status game-status-error' : 'game-status'}>
+              {error || gameState.gameStatus}
+            </div>
+          )}
           <div>{turnMessage()}</div>
           <div>
             Walls left:{' '}

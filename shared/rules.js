@@ -201,7 +201,7 @@ export function removePlayer(state, seat) {
 
   // Mid-game: the pawn and walls stay, the seat is skipped from now on
   const next = { ...state, activePlayers, gameStatus: `${name} left the game` };
-  if (state.isGameOver) return next;
+  if (state.isGameOver) return activePlayers.length < 2 ? { ...next, undoVote: null } : next;
 
   if (activePlayers.length === 1) {
     const winner = activePlayers[0];

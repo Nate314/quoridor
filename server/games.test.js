@@ -158,3 +158,41 @@ test('the winning move can be undone', () => {
   assert.deepEqual(restored.pawns[1], { row: 1, col: 4 });
   assert.equal(restored.currentPlayer, 1);
 });
+
+function wonGame() {
+  const manager = gameWith('A', 'B');
+  let p2Col = 4;
+  for (let row = 7; row >= 1; row--) {
+    ok(manager.move('g1', 1, step(row, 4)));
+    p2Col = p2Col === 4 ? 3 : 4;
+    ok(manager.move('g1', 2, step(0, p2Col)));
+  }
+  ok(manager.move('g1', 1, step(0, 4)));
+  return manager;
+}
+
+test('an undo vote after a win is cancelled when the winner leaves', () => {
+  const manager = wonGame();
+  ok(manager.requestUndo('g1', 2));
+  const state = manager.leave('g1', 1).state;
+  assert.equal(state.undoVote, null);
+  assert.equal(state.isGameOver, true);
+  assert.equal(state.winner, 1);
+  assert.deepEqual(manager.voteUndo('g1', 2, true), { error: 'No undo vote in progress' });
+});
+
+test('an undo vote after a win is cancelled when the requester leaves', () => {
+  const manager = wonGame();
+  ok(manager.requestUndo('g1', 2));
+  const state = manager.leave('g1', 2).state;
+  assert.equal(state.undoVote, null);
+  assert.equal(state.isGameOver, true);
+  assert.equal(state.winner, 1);
+});
+
+test('join caps the name and the game ID at 20 characters', () => {
+  const manager = createGameManager();
+  const joined = manager.join('g'.repeat(30), 'n'.repeat(30));
+  assert.equal(joined.gameId, 'g'.repeat(20));
+  assert.equal(joined.state.playerNames[1], 'n'.repeat(20));
+});

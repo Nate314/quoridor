@@ -51,6 +51,8 @@ This will build the client and start the server. Access the game at `http://loca
 - Click "Horizontal Wall" or "Vertical Wall" to place walls
 - Valid moves and wall placements are highlighted
 - The game board is dimmed when it's not your turn
+- Click Undo to ask everyone to undo the last turn; it happens only if every player still in the game approves
+- Hover or click Show Last Move to highlight the previous move
 
 ## Network Setup
 
