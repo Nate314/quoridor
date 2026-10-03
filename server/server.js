@@ -1,9 +1,10 @@
 import { WebSocketServer } from 'ws';
 import express from 'express';
-import { v4 as uuidv4 } from 'uuid';
 import http from 'http';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { createGameManager } from './games.js';
+import { MESSAGE_TYPES } from '../shared/messages.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -13,9 +14,8 @@ const app = express();
 const server = http.createServer(app);
 const wss = new WebSocketServer({ server });
 
-// Game state storage
-const games = new Map();  // Store game states
-const players = new Map(); // Store player connections
+const manager = createGameManager();
+const connections = new Map(); // ws -> { gameId, seat } once the socket has joined a game
 
 // Configure Express routes
 app.use(express.static(path.join(__dirname, '../dist')));
@@ -25,233 +25,95 @@ app.use((req, res) => {
   res.sendFile(path.join(__dirname, '../dist/index.html'));
 });
 
-// WebSocket message types
-const MESSAGE_TYPES = {
-  JOIN_GAME: 'JOIN_GAME',
-  GAME_JOINED: 'GAME_JOINED',
-  MAKE_MOVE: 'MAKE_MOVE',
-  GAME_STATE: 'GAME_STATE',
-  GAME_ERROR: 'GAME_ERROR',
-  PLAYER_DISCONNECTED: 'PLAYER_DISCONNECTED'
-};
-
-function createGame(gameId) {
-  return {
-    id: gameId,
-    players: [],
-    gameState: {
-      currentPlayer: 1,
-      pawns: {
-        1: { row: 8, col: 4 },
-        2: { row: 0, col: 4 }
-      },
-      walls: [],
-      wallCounts: {
-        1: 10,
-        2: 10
-      },
-      gameStatus: '',
-      isGameOver: false,
-      playerNames: {
-        1: '',
-        2: ''
-      },
-      lastMove: null
-    }
-  };
-}
-
 wss.on('connection', (ws) => {
-  const playerId = uuidv4();
-  ws.playerId = playerId;
-  
   ws.on('message', (message) => {
+    let data;
     try {
-      const data = JSON.parse(message);
-      handleMessage(ws, data);
+      data = JSON.parse(message);
     } catch (error) {
       console.error('Error parsing message:', error);
+      return;
     }
+    handleMessage(ws, data);
   });
 
   ws.on('close', () => handleDisconnect(ws));
 });
 
 function handleMessage(ws, data) {
-  switch (data.type) {
-    case MESSAGE_TYPES.JOIN_GAME:
-      handleJoinGame(ws, data);
-      break;
+  if (data?.type === MESSAGE_TYPES.JOIN_GAME) {
+    handleJoinGame(ws, data);
+    return;
+  }
+
+  const connection = connections.get(ws);
+  if (!connection) {
+    sendError(ws, 'Join a game first');
+    return;
+  }
+
+  const { gameId, seat } = connection;
+  switch (data?.type) {
     case MESSAGE_TYPES.MAKE_MOVE:
-      handleMove(ws, data);
+      respond(ws, gameId, manager.move(gameId, seat, data.payload?.move));
+      break;
+    case MESSAGE_TYPES.REQUEST_UNDO:
+      respond(ws, gameId, manager.requestUndo(gameId, seat));
+      break;
+    case MESSAGE_TYPES.VOTE_UNDO:
+      respond(ws, gameId, manager.voteUndo(gameId, seat, data.payload?.approve));
       break;
   }
 }
 
 function handleJoinGame(ws, data) {
-  const { gameId, playerName } = data;
-  let game = games.get(gameId);
-
-  // Create new game if it doesn't exist
-  if (!game) {
-    game = createGame(gameId);
-    games.set(gameId, game);
-  }
-
-  // Check if game is full
-  if (game.players.length >= 2) {
-    sendError(ws, 'Game is full');
+  if (connections.has(ws)) {
+    sendError(ws, 'Already in a game');
     return;
   }
 
-  // Add player to game
-  const playerNumber = game.players.length + 1;
-  game.players.push(ws.playerId);
-  players.set(ws.playerId, { ws, gameId, playerNumber, playerName });
-  game.gameState.playerNames[playerNumber] = playerName;
-
-  // Send game joined confirmation
-  ws.send(JSON.stringify({
-    type: MESSAGE_TYPES.GAME_JOINED,
-    payload: {
-      playerNumber,
-      gameState: game.gameState
-    }
-  }));
-
-  // Set join message
-  game.gameState.gameStatus = `${playerName} has joined the game!`;
-  
-  // If game is ready to start, notify both players
-  if (game.players.length === 2) {
-    broadcastGameState(game);
-  }
-}
-
-function handleMove(ws, data) {
-  const player = players.get(ws.playerId);
-  if (!player) return;
-
-  const game = games.get(player.gameId);
-  if (!game) return;
-
-  // Verify it's the player's turn
-  if (game.gameState.currentPlayer !== player.playerNumber) {
-    sendError(ws, 'Not your turn');
+  const result = manager.join(data.gameId, data.playerName);
+  if (result.error) {
+    sendError(ws, result.error);
     return;
   }
 
-  // Update game state
-  const { move } = data.payload;
-  if (move.type === 'move') {
-    // Update game state
-    const updatedState = {
-      ...game.gameState,
-      pawns: {
-        ...game.gameState.pawns,
-        [player.playerNumber]: { row: move.row, col: move.col }
-      },
-      lastMove: {
-        type: 'move',
-        playerNumber: player.playerNumber,
-        from: game.gameState.pawns[player.playerNumber],
-        to: { row: move.row, col: move.col }
-      }
-    };
-    
-    // Check win condition
-    if ((player.playerNumber === 1 && move.row === 0) || 
-        (player.playerNumber === 2 && move.row === 8)) {
-      updatedState.gameStatus = `${player.playerName} wins!`;
-      updatedState.isGameOver = true;
-    } else {
-      updatedState.gameStatus = `${player.playerName} moved`;
-    }
-    game.gameState = updatedState;
-    
-    if (updatedState.isGameOver) {
-      broadcastGameState(game);
-      return;
-    }
-  } else if (move.type === 'wall') {
-    // Update game state
-    game.gameState = {
-      ...game.gameState,
-      walls: [
-        ...game.gameState.walls,
-        { ...move, playerNumber: player.playerNumber }
-      ],
-      wallCounts: {
-        ...game.gameState.wallCounts,
-        [player.playerNumber]: game.gameState.wallCounts[player.playerNumber] - 1
-      },
-      gameStatus: `${player.playerName} placed a wall`,
-      lastMove: {
-        type: 'wall',
-        playerNumber: player.playerNumber,
-        row: move.row,
-        col: move.col,
-        orientation: move.orientation
-      }
-    };
-  }
-
-  // Switch turns
-  game.gameState.currentPlayer = game.gameState.currentPlayer === 1 ? 2 : 1;
-
-  // Broadcast updated state to all players
-  broadcastGameState(game);
+  connections.set(ws, { gameId: result.gameId, seat: result.seat });
+  send(ws, MESSAGE_TYPES.GAME_JOINED, { playerNumber: result.seat, gameState: result.state });
+  broadcast(result.gameId, result.state);
 }
 
 function handleDisconnect(ws) {
-  const player = players.get(ws.playerId);
-  if (!player) return;
+  const connection = connections.get(ws);
+  if (!connection) return;
 
-  const game = games.get(player.gameId);
-  if (!game) return;
+  connections.delete(ws);
+  const result = manager.leave(connection.gameId, connection.seat);
+  if (result) broadcast(connection.gameId, result.state);
+}
 
-  // Remove player from game
-  game.players = game.players.filter(id => id !== ws.playerId);
-  players.delete(ws.playerId);
-
-  // Notify remaining player
-  if (game.players.length > 0) {
-    const remainingPlayer = players.get(game.players[0]);
-    if (remainingPlayer) {
-      remainingPlayer.ws.send(JSON.stringify({
-        type: MESSAGE_TYPES.PLAYER_DISCONNECTED
-      }));
-    }
-  }
-
-  // Clean up empty game
-  if (game.players.length === 0) {
-    games.delete(player.gameId);
+function respond(ws, gameId, result) {
+  if (result.error) {
+    sendError(ws, result.error);
+  } else {
+    broadcast(gameId, result.state);
   }
 }
 
-function broadcastGameState(game) {
-  const stateToSend = {
-    ...game.gameState,
-    playerNames: game.gameState.playerNames
-  };
-  
-  game.players.forEach(playerId => {
-    const player = players.get(playerId);
-    if (player) {
-      player.ws.send(JSON.stringify({
-        type: MESSAGE_TYPES.GAME_STATE,
-        payload: stateToSend
-      }));
-    }
-  });
+function broadcast(gameId, state) {
+  for (const [ws, connection] of connections) {
+    if (connection.gameId === gameId) send(ws, MESSAGE_TYPES.GAME_STATE, state);
+  }
+}
+
+function send(ws, type, payload) {
+  if (ws.readyState === ws.OPEN) {
+    ws.send(JSON.stringify({ type, payload }));
+  }
 }
 
 function sendError(ws, message) {
-  ws.send(JSON.stringify({
-    type: MESSAGE_TYPES.GAME_ERROR,
-    payload: { message }
-  }));
+  send(ws, MESSAGE_TYPES.GAME_ERROR, { message });
 }
 
 server.listen(PORT, () => {
