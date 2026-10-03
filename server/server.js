@@ -4,7 +4,7 @@ import http from 'http';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { createGameManager } from './games.js';
-import { MESSAGE_TYPES } from '../shared/messages.js';
+import { MESSAGE_TYPES } from '../shared/messages.ts';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);

@@ -1,45 +1,49 @@
 // Quoridor rules shared by the browser (move hints, wall previews) and the server (validation).
+import { asRecord } from './messages.ts';
+import type { BoardState, GameState, Position, Result, Seat, Wall, WallInput } from './types.ts';
 
 export const BOARD_SIZE = 9;
 export const MAX_PLAYERS = 4;
 
-export const SEATS = {
+type SeatInfo = { start: Position; goal: { row: number } | { col: number }; goalLabel: string };
+
+export const SEATS: Record<Seat, SeatInfo> = {
   1: { start: { row: 8, col: 4 }, goal: { row: 0 }, goalLabel: 'top row' },
   2: { start: { row: 0, col: 4 }, goal: { row: 8 }, goalLabel: 'bottom row' },
   3: { start: { row: 4, col: 0 }, goal: { col: 8 }, goalLabel: 'right column' },
   4: { start: { row: 4, col: 8 }, goal: { col: 0 }, goalLabel: 'left column' }
 };
 
-const DIRECTIONS = [
+const DIRECTIONS: Position[] = [
   { row: -1, col: 0 }, // up
   { row: 1, col: 0 },  // down
   { row: 0, col: -1 }, // left
   { row: 0, col: 1 }   // right
 ];
 
-export function wallsPerPlayer(playerCount) {
+export function wallsPerPlayer(playerCount: number): number {
   return playerCount <= 2 ? 10 : 5;
 }
 
-export function isAtGoal(seat, position) {
+export function isAtGoal(seat: Seat, position: Position): boolean {
   const { goal } = SEATS[seat];
-  return goal.row !== undefined ? position.row === goal.row : position.col === goal.col;
+  return 'row' in goal ? position.row === goal.row : position.col === goal.col;
 }
 
-function isOnBoard({ row, col }) {
+function isOnBoard({ row, col }: Position): boolean {
   return row >= 0 && row < BOARD_SIZE && col >= 0 && col < BOARD_SIZE;
 }
 
-function isSamePosition(a, b) {
+function isSamePosition(a: Position, b: Position): boolean {
   return a.row === b.row && a.col === b.col;
 }
 
-function isOccupied(pawns, position) {
+function isOccupied(pawns: Record<Seat, Position>, position: Position): boolean {
   return Object.values(pawns).some(pawn => isSamePosition(pawn, position));
 }
 
 // `from` and `to` must be orthogonally adjacent squares
-export function isBlockedByWall(from, to, walls) {
+export function isBlockedByWall(from: Position, to: Position, walls: Wall[]): boolean {
   if (from.col === to.col) {
     const row = Math.min(from.row, to.row);
     return walls.some(wall =>
@@ -56,9 +60,9 @@ export function isBlockedByWall(from, to, walls) {
   );
 }
 
-export function getValidMoves(state, seat) {
+export function getValidMoves(state: BoardState, seat: Seat): Position[] {
   const pawn = state.pawns[seat];
-  const moves = [];
+  const moves: Position[] = [];
 
   for (const dir of DIRECTIONS) {
     const step = { row: pawn.row + dir.row, col: pawn.col + dir.col };
@@ -79,14 +83,16 @@ export function getValidMoves(state, seat) {
   return moves;
 }
 
-function isWallInBounds(wall) {
-  return (wall.orientation === 'horizontal' || wall.orientation === 'vertical') &&
-    Number.isInteger(wall.row) && Number.isInteger(wall.col) &&
-    wall.row >= 0 && wall.row < BOARD_SIZE - 1 &&
-    wall.col >= 0 && wall.col < BOARD_SIZE - 1;
+function isWallInBounds(wall: WallInput): wall is Wall {
+  const { row, col, orientation } = wall;
+  return (orientation === 'horizontal' || orientation === 'vertical') &&
+    typeof row === 'number' && typeof col === 'number' &&
+    Number.isInteger(row) && Number.isInteger(col) &&
+    row >= 0 && row < BOARD_SIZE - 1 &&
+    col >= 0 && col < BOARD_SIZE - 1;
 }
 
-function wallsConflict(a, b) {
+function wallsConflict(a: Wall, b: Wall): boolean {
   if (a.orientation !== b.orientation) {
     return a.row === b.row && a.col === b.col; // Crossing at the same midpoint
   }
@@ -96,12 +102,12 @@ function wallsConflict(a, b) {
   return a.col === b.col && Math.abs(a.row - b.row) <= 1;
 }
 
-export function hasPathToGoal(seat, start, walls) {
-  const visited = new Set();
-  const queue = [start];
+export function hasPathToGoal(seat: Seat, start: Position, walls: Wall[]): boolean {
+  const visited = new Set<string>();
+  const queue: Position[] = [start];
 
   while (queue.length > 0) {
-    const square = queue.shift();
+    const square = queue.shift() as Position; // The loop condition guarantees an element
     const key = `${square.row},${square.col}`;
     if (visited.has(key)) continue;
     visited.add(key);
@@ -119,16 +125,17 @@ export function hasPathToGoal(seat, start, walls) {
   return false;
 }
 
-export function isValidWallPlacement(state, wall) {
+export function isValidWallPlacement(state: BoardState, wall: WallInput): wall is Wall {
   if (!isWallInBounds(wall)) return false;
-  if (state.walls.some(existing => wallsConflict(existing, wall))) return false;
+  const placed: Wall = wall;
+  if (state.walls.some(existing => wallsConflict(existing, placed))) return false;
 
   // Every player still in the game must keep a path to their goal edge
-  const walls = [...state.walls, wall];
+  const walls = [...state.walls, placed];
   return state.activePlayers.every(seat => hasPathToGoal(seat, state.pawns[seat], walls));
 }
 
-export function createGameState(gameId) {
+export function createGameState(gameId: string): GameState {
   return {
     gameId,
     started: false,
@@ -146,13 +153,13 @@ export function createGameState(gameId) {
   };
 }
 
-function without(record, key) {
+function without<T>(record: Record<Seat, T>, key: Seat): Record<Seat, T> {
   const { [key]: _removed, ...rest } = record;
   return rest;
 }
 
 // Before the first move, wall counts track the player count and the lowest seat moves first
-function withLobbyDefaults(state) {
+function withLobbyDefaults(state: GameState): GameState {
   const count = wallsPerPlayer(state.activePlayers.length);
   return {
     ...state,
@@ -161,7 +168,7 @@ function withLobbyDefaults(state) {
   };
 }
 
-export function nextActivePlayer(state, fromSeat) {
+export function nextActivePlayer(state: Pick<GameState, 'activePlayers'>, fromSeat: Seat): Seat | null {
   for (let offset = 1; offset <= MAX_PLAYERS; offset++) {
     const seat = ((fromSeat - 1 + offset) % MAX_PLAYERS) + 1;
     if (state.activePlayers.includes(seat)) return seat;
@@ -169,11 +176,12 @@ export function nextActivePlayer(state, fromSeat) {
   return null;
 }
 
-export function addPlayer(state, name) {
+export function addPlayer(state: GameState, name: string): { state: GameState; seat: Seat } | { error: string } {
   if (state.started) return { error: 'Game already in progress' };
   if (state.activePlayers.length >= MAX_PLAYERS) return { error: 'Game is full' };
 
   const seat = Object.keys(SEATS).map(Number).find(s => !state.activePlayers.includes(s));
+  if (seat === undefined) return { error: 'Game is full' }; // Unreachable: fewer than MAX_PLAYERS seats are taken
   const activePlayers = [...state.activePlayers, seat].sort((a, b) => a - b);
   const next = withLobbyDefaults({
     ...state,
@@ -185,7 +193,7 @@ export function addPlayer(state, name) {
   return { state: next, seat };
 }
 
-export function removePlayer(state, seat) {
+export function removePlayer(state: GameState, seat: Seat): GameState {
   const name = state.playerNames[seat];
   const activePlayers = state.activePlayers.filter(s => s !== seat);
 
@@ -200,7 +208,7 @@ export function removePlayer(state, seat) {
   }
 
   // Mid-game: the pawn and walls stay, the seat is skipped from now on
-  const next = { ...state, activePlayers, gameStatus: `${name} left the game` };
+  const next: GameState = { ...state, activePlayers, gameStatus: `${name} left the game` };
   if (state.isGameOver) return activePlayers.length < 2 ? { ...next, undoVote: null } : next;
 
   if (activePlayers.length === 1) {
@@ -220,20 +228,19 @@ export function removePlayer(state, seat) {
   return next;
 }
 
-export function applyMove(state, seat, move) {
+export function applyMove(state: GameState, seat: Seat, move: unknown): Result<GameState> {
   if (state.isGameOver) return { error: 'The game is over' };
   if (state.activePlayers.length < 2) return { error: 'Waiting for more players' };
   if (state.undoVote) return { error: 'An undo vote is in progress' };
   if (state.currentPlayer !== seat) return { error: 'Not your turn' };
 
+  const input = asRecord(move);
   const name = state.playerNames[seat];
-  let next;
+  let next: GameState;
 
-  if (move?.type === 'move') {
-    const to = { row: move.row, col: move.col };
-    if (!getValidMoves(state, seat).some(valid => isSamePosition(valid, to))) {
-      return { error: 'Invalid move' };
-    }
+  if (input?.type === 'move') {
+    const to = getValidMoves(state, seat).find(valid => valid.row === input.row && valid.col === input.col);
+    if (!to) return { error: 'Invalid move' };
     next = {
       ...state,
       pawns: { ...state.pawns, [seat]: to },
@@ -245,9 +252,9 @@ export function applyMove(state, seat, move) {
       next.winner = seat;
       next.gameStatus = `${name} wins!`;
     }
-  } else if (move?.type === 'wall') {
+  } else if (input?.type === 'wall') {
     if (state.wallCounts[seat] <= 0) return { error: 'No walls left' };
-    const wall = { row: move.row, col: move.col, orientation: move.orientation };
+    const wall = { row: input.row, col: input.col, orientation: input.orientation };
     if (!isValidWallPlacement(state, wall)) return { error: 'Invalid wall placement' };
     next = {
       ...state,

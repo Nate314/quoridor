@@ -11,16 +11,21 @@ import {
   addPlayer,
   removePlayer,
   applyMove
-} from './rules.js';
+} from './rules.ts';
+import type { BoardState, GameState, Move, Position, Seat, Wall } from './types.ts';
 
 // Minimal state for geometry checks: only pawns, walls and activePlayers are read
-function board({ pawns, walls = [], activePlayers = Object.keys(pawns).map(Number) }) {
+function board({ pawns, walls = [], activePlayers = Object.keys(pawns).map(Number) }: {
+  pawns: Record<Seat, Position>;
+  walls?: Wall[];
+  activePlayers?: Seat[];
+}): BoardState {
   return { pawns, walls, activePlayers };
 }
 
-const at = (row, col) => ({ row, col });
-const hWall = (row, col) => ({ row, col, orientation: 'horizontal' });
-const vWall = (row, col) => ({ row, col, orientation: 'vertical' });
+const at = (row: number, col: number): Position => ({ row, col });
+const hWall = (row: number, col: number): Wall => ({ row, col, orientation: 'horizontal' });
+const vWall = (row: number, col: number): Wall => ({ row, col, orientation: 'vertical' });
 
 test('wall count depends on player count', () => {
   assert.equal(wallsPerPlayer(2), 10);
@@ -91,19 +96,24 @@ test('paths to a column goal are found', () => {
   assert.equal(hasPathToGoal(3, at(4, 0), [hWall(2, 0), vWall(3, 0), hWall(4, 0)]), false);
 });
 
-function lobby(...names) {
+function seated(result: ReturnType<typeof addPlayer>) {
+  if ('error' in result) assert.fail(result.error);
+  return result;
+}
+
+function lobby(...names: string[]): GameState {
   let state = createGameState('g1');
-  for (const name of names) state = addPlayer(state, name).state;
+  for (const name of names) state = seated(addPlayer(state, name)).state;
   return state;
 }
 
-function play(state, seat, move) {
+function play(state: GameState, seat: Seat, move: Move): GameState {
   const result = applyMove(state, seat, move);
-  assert.equal(result.error, undefined, result.error);
+  if ('error' in result) assert.fail(result.error);
   return result.state;
 }
 
-const step = (row, col) => ({ type: 'move', row, col });
+const step = (row: number, col: number): Move => ({ type: 'move', row, col });
 
 test('players take seats in order on their start squares', () => {
   const state = lobby('A', 'B', 'C', 'D');
@@ -117,18 +127,18 @@ test('players take seats in order on their start squares', () => {
 test('lobby wall counts follow the player count', () => {
   let state = lobby('A', 'B');
   assert.deepEqual(state.wallCounts, { 1: 10, 2: 10 });
-  state = addPlayer(state, 'C').state;
+  state = seated(addPlayer(state, 'C')).state;
   assert.deepEqual(state.wallCounts, { 1: 5, 2: 5, 3: 5 });
   state = removePlayer(state, 3);
   assert.deepEqual(state.wallCounts, { 1: 10, 2: 10 });
 });
 
 test('a freed lobby seat is reused and the lowest seat moves first', () => {
-  let state = removePlayer(lobby('A', 'B', 'C'), 1);
+  const state = removePlayer(lobby('A', 'B', 'C'), 1);
   assert.equal(state.currentPlayer, 2);
   assert.equal(state.pawns[1], undefined);
   assert.equal(state.gameStatus, 'A left');
-  const result = addPlayer(state, 'D');
+  const result = seated(addPlayer(state, 'D'));
   assert.equal(result.seat, 1);
   assert.equal(result.state.currentPlayer, 1);
 });
@@ -161,6 +171,13 @@ test('rejects malformed and illegal moves', () => {
   );
 });
 
+test('rejects moves that are not objects', () => {
+  const state = lobby('A', 'B');
+  assert.deepEqual(applyMove(state, 1, 'move'), { error: 'Unknown move type' });
+  assert.deepEqual(applyMove(state, 1, []), { error: 'Unknown move type' });
+  assert.deepEqual(applyMove(state, 1, null), { error: 'Unknown move type' });
+});
+
 test('a pawn move updates position, last move, status and turn', () => {
   const state = play(lobby('A', 'B'), 1, step(7, 4));
   assert.deepEqual(state.pawns[1], { row: 7, col: 4 });
@@ -186,8 +203,13 @@ test('a player with no walls left cannot place one', () => {
 });
 
 test('reaching the goal edge wins, for every seat', () => {
-  const cases = { 1: [at(1, 2), at(0, 2)], 2: [at(7, 2), at(8, 2)], 3: [at(2, 7), at(2, 8)], 4: [at(2, 1), at(2, 0)] };
-  for (const [seat, [from, to]] of Object.entries(cases).map(([s, c]) => [Number(s), c])) {
+  const cases: [Seat, Position, Position][] = [
+    [1, at(1, 2), at(0, 2)],
+    [2, at(7, 2), at(8, 2)],
+    [3, at(2, 7), at(2, 8)],
+    [4, at(2, 1), at(2, 0)]
+  ];
+  for (const [seat, from, to] of cases) {
     const base = lobby('A', 'B', 'C', 'D');
     const state = play({ ...base, currentPlayer: seat, pawns: { ...base.pawns, [seat]: from } }, seat, { type: 'move', ...to });
     assert.equal(state.isGameOver, true);

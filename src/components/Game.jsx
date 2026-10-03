@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import gameService from '../services/gameService';
 import UndoVote from './UndoVote';
-import { BOARD_SIZE, SEATS, getValidMoves, isValidWallPlacement } from '../../shared/rules.js';
+import { BOARD_SIZE, SEATS, getValidMoves, isValidWallPlacement } from '../../shared/rules.ts';
 
 const SQUARE_SIZE = 52; // 50px square plus its 1px borders
 const BOARD = Array.from({ length: BOARD_SIZE }, () => Array(BOARD_SIZE).fill(null));

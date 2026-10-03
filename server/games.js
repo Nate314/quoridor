@@ -1,4 +1,4 @@
-import { createGameState, addPlayer, removePlayer, applyMove, nextActivePlayer } from '../shared/rules.js';
+import { createGameState, addPlayer, removePlayer, applyMove, nextActivePlayer } from '../shared/rules.ts';
 
 const MAX_NAME_LENGTH = 20; // applies to player names and game IDs
 

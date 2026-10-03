@@ -1,4 +1,4 @@
-import { MESSAGE_TYPES } from '../../shared/messages.js';
+import { MESSAGE_TYPES } from '../../shared/messages.ts';
 
 class GameService {
   constructor() {
