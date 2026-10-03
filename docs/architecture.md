@@ -39,25 +39,26 @@ flowchart TD
 
 ### Client-Side Components
 
-1. **React UI Components (`/src/components/Game.jsx`)**
+1. **React UI Components (`/src/components/Game.tsx`)**
 
    - Renders game board and pieces
    - Handles user interactions
    - Displays game state and player info
 
-2. **Game Service (`/src/services/gameService.js`)**
+2. **Game Service (`/src/services/gameService.ts`)**
 
    - Manages the WebSocket connection
    - Sends joins, moves, undo requests and undo votes
    - Passes server state updates and errors to the UI
 
-3. **Shared Rules (`/shared/rules.js`)**
+3. **Shared Rules (`/shared/rules.ts`)**
    - Seats, goals, legal pawn moves and wall placements for up to four players
    - Used by the browser for move hints and wall previews, and by the server to validate every move
+   - Data shapes shared by both sides live in `/shared/types.ts`; WebSocket message types live in `/shared/messages.ts`
 
 ### Server-Side Components
 
-1. **Express Server (`/server/server.js`)**
+1. **Express Server (`/server/server.ts`)**
 
    - Serves static React application
    - Handles HTTP requests
@@ -69,7 +70,7 @@ flowchart TD
    - Handles player connections/disconnections
    - Routes messages to appropriate game sessions
 
-3. **Game Manager (`/server/games.js`)**
+3. **Game Manager (`/server/games.ts`)**
 
    - Creates games, seats up to four players, and locks joining after the first move
    - Validates and applies moves with the shared rules
