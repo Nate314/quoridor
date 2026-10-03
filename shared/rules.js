@@ -127,3 +127,142 @@ export function isValidWallPlacement(state, wall) {
   const walls = [...state.walls, wall];
   return state.activePlayers.every(seat => hasPathToGoal(seat, state.pawns[seat], walls));
 }
+
+export function createGameState(gameId) {
+  return {
+    gameId,
+    started: false,
+    currentPlayer: null,
+    activePlayers: [],
+    playerNames: {},
+    pawns: {},
+    wallCounts: {},
+    walls: [],
+    lastMove: null,
+    gameStatus: '',
+    isGameOver: false,
+    winner: null,
+    undoVote: null
+  };
+}
+
+function without(record, key) {
+  const { [key]: _removed, ...rest } = record;
+  return rest;
+}
+
+// Before the first move, wall counts track the player count and the lowest seat moves first
+function withLobbyDefaults(state) {
+  const count = wallsPerPlayer(state.activePlayers.length);
+  return {
+    ...state,
+    wallCounts: Object.fromEntries(state.activePlayers.map(seat => [seat, count])),
+    currentPlayer: state.activePlayers[0] ?? null
+  };
+}
+
+export function nextActivePlayer(state, fromSeat) {
+  for (let offset = 1; offset <= MAX_PLAYERS; offset++) {
+    const seat = ((fromSeat - 1 + offset) % MAX_PLAYERS) + 1;
+    if (state.activePlayers.includes(seat)) return seat;
+  }
+  return null;
+}
+
+export function addPlayer(state, name) {
+  if (state.started) return { error: 'Game already in progress' };
+  if (state.activePlayers.length >= MAX_PLAYERS) return { error: 'Game is full' };
+
+  const seat = Object.keys(SEATS).map(Number).find(s => !state.activePlayers.includes(s));
+  const activePlayers = [...state.activePlayers, seat].sort((a, b) => a - b);
+  const next = withLobbyDefaults({
+    ...state,
+    activePlayers,
+    playerNames: { ...state.playerNames, [seat]: name },
+    pawns: { ...state.pawns, [seat]: SEATS[seat].start },
+    gameStatus: `${name} joined (${activePlayers.length}/${MAX_PLAYERS} players)`
+  });
+  return { state: next, seat };
+}
+
+export function removePlayer(state, seat) {
+  const name = state.playerNames[seat];
+  const activePlayers = state.activePlayers.filter(s => s !== seat);
+
+  if (!state.started) {
+    return withLobbyDefaults({
+      ...state,
+      activePlayers,
+      playerNames: without(state.playerNames, seat),
+      pawns: without(state.pawns, seat),
+      gameStatus: `${name} left`
+    });
+  }
+
+  // Mid-game: the pawn and walls stay, the seat is skipped from now on
+  const next = { ...state, activePlayers, gameStatus: `${name} left the game` };
+  if (state.isGameOver) return next;
+
+  if (activePlayers.length === 1) {
+    const winner = activePlayers[0];
+    return {
+      ...next,
+      isGameOver: true,
+      winner,
+      undoVote: null,
+      gameStatus: `${state.playerNames[winner]} wins! Everyone else left.`
+    };
+  }
+
+  if (state.currentPlayer === seat) {
+    next.currentPlayer = nextActivePlayer(next, seat);
+  }
+  return next;
+}
+
+export function applyMove(state, seat, move) {
+  if (state.isGameOver) return { error: 'The game is over' };
+  if (state.activePlayers.length < 2) return { error: 'Waiting for more players' };
+  if (state.undoVote) return { error: 'An undo vote is in progress' };
+  if (state.currentPlayer !== seat) return { error: 'Not your turn' };
+
+  const name = state.playerNames[seat];
+  let next;
+
+  if (move?.type === 'move') {
+    const to = { row: move.row, col: move.col };
+    if (!getValidMoves(state, seat).some(valid => isSamePosition(valid, to))) {
+      return { error: 'Invalid move' };
+    }
+    next = {
+      ...state,
+      pawns: { ...state.pawns, [seat]: to },
+      lastMove: { type: 'move', playerNumber: seat, from: state.pawns[seat], to },
+      gameStatus: `${name} moved`
+    };
+    if (isAtGoal(seat, to)) {
+      next.isGameOver = true;
+      next.winner = seat;
+      next.gameStatus = `${name} wins!`;
+    }
+  } else if (move?.type === 'wall') {
+    if (state.wallCounts[seat] <= 0) return { error: 'No walls left' };
+    const wall = { row: move.row, col: move.col, orientation: move.orientation };
+    if (!isValidWallPlacement(state, wall)) return { error: 'Invalid wall placement' };
+    next = {
+      ...state,
+      walls: [...state.walls, { ...wall, playerNumber: seat }],
+      wallCounts: { ...state.wallCounts, [seat]: state.wallCounts[seat] - 1 },
+      lastMove: { type: 'wall', playerNumber: seat, ...wall },
+      gameStatus: `${name} placed a wall`
+    };
+  } else {
+    return { error: 'Unknown move type' };
+  }
+
+  next.started = true; // Locks joining and freezes wall counts
+  if (!next.isGameOver) {
+    next.currentPlayer = nextActivePlayer(next, seat);
+  }
+  return { state: next };
+}
