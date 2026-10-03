@@ -83,7 +83,7 @@ export function getValidMoves(state: BoardState, seat: Seat): Position[] {
   return moves;
 }
 
-function isWallInBounds(wall: WallInput): wall is Wall {
+export function isWallInBounds(wall: WallInput): wall is Wall {
   const { row, col, orientation } = wall;
   return (orientation === 'horizontal' || orientation === 'vertical') &&
     typeof row === 'number' && typeof col === 'number' &&
@@ -125,7 +125,7 @@ export function hasPathToGoal(seat: Seat, start: Position, walls: Wall[]): boole
   return false;
 }
 
-export function isValidWallPlacement(state: BoardState, wall: WallInput): wall is Wall {
+export function isValidWallPlacement(state: BoardState, wall: WallInput): boolean {
   if (!isWallInBounds(wall)) return false;
   const placed: Wall = wall;
   if (state.walls.some(existing => wallsConflict(existing, placed))) return false;
@@ -255,7 +255,7 @@ export function applyMove(state: GameState, seat: Seat, move: unknown): Result<G
   } else if (input?.type === 'wall') {
     if (state.wallCounts[seat] <= 0) return { error: 'No walls left' };
     const wall = { row: input.row, col: input.col, orientation: input.orientation };
-    if (!isValidWallPlacement(state, wall)) return { error: 'Invalid wall placement' };
+    if (!isWallInBounds(wall) || !isValidWallPlacement(state, wall)) return { error: 'Invalid wall placement' };
     next = {
       ...state,
       walls: [...state.walls, { ...wall, playerNumber: seat }],

@@ -7,8 +7,11 @@ A web-based implementation of the Quoridor board game with multiplayer support.
 1. Use Node.js 22.18 or newer (the server runs its TypeScript files directly). With nvm:
 
 ```bash
-nvm use
+nvm install 22
+nvm use 22
 ```
+
+(On macOS or Linux, `nvm use` with no version also works; it reads `.nvmrc`.)
 
 2. Install dependencies:
 
@@ -22,14 +25,14 @@ npm install
 npm run start
 ```
 
-This will build the client and start the server. Access the game at `http://localhost:3000`.
+This type-checks the code, builds the client, and starts the server. Access the game at `http://localhost:3000`.
 
 ## Development
 
 - `npm test` runs the unit tests
 - `npm run typecheck` checks the TypeScript types for the browser and server code
 - `npm run lint` runs ESLint
-- `npm run dev` starts the Vite dev server for the browser code
+- `npm run dev` starts the Vite dev server for the browser code (UI only; play games through `npm start`)
 
 ## How to Play Multiplayer
 
