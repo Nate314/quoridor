@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import gameService from '../services/gameService';
+import UndoVote from './UndoVote';
 import { BOARD_SIZE, SEATS, getValidMoves, isValidWallPlacement } from '../../shared/rules.js';
 
 const SQUARE_SIZE = 52; // 50px square plus its 1px borders
@@ -186,6 +187,12 @@ export default function Game() {
               Move
             </button>
             <button
+              onClick={() => gameService.requestUndo()}
+              disabled={!gameState.undoAvailable || Boolean(gameState.undoVote) || !activePlayers.includes(playerNumber) || activePlayers.length < 2}
+            >
+              Undo
+            </button>
+            <button
               onClick={() => setLastMovePinned(prev => !prev)}
               onMouseEnter={() => setLastMoveHovered(true)}
               onMouseLeave={() => setLastMoveHovered(false)}
@@ -244,6 +251,15 @@ export default function Game() {
               />
             )}
           </div>
+          {gameState.undoVote && (
+            <UndoVote
+              vote={gameState.undoVote}
+              playerNumber={playerNumber}
+              activePlayers={activePlayers}
+              playerNames={playerNames}
+              onVote={(approve) => gameService.voteUndo(approve)}
+            />
+          )}
         </div>
         <div className="wall-actions">
           <button
