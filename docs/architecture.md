@@ -51,14 +51,13 @@ flowchart TD
 
 2. **Game Service (`/src/services/gameService.js`)**
 
-   - Manages WebSocket connection
-   - Handles game state updates
-   - Processes moves and wall placements
+   - Manages the WebSocket connection
+   - Sends joins, moves, undo requests and undo votes
+   - Passes server state updates and errors to the UI
 
-3. **WebSocket Client**
-   - Maintains connection to server
-   - Sends/receives game messages
-   - Auto-reconnects on disconnection
+3. **Shared Rules (`/shared/rules.js`)**
+   - Seats, goals, legal pawn moves and wall placements for up to four players
+   - Used by the browser for move hints and wall previews, and by the server to validate every move
 
 ### Server-Side Components
 
@@ -74,11 +73,12 @@ flowchart TD
    - Handles player connections/disconnections
    - Routes messages to appropriate game sessions
 
-3. **Game Manager**
+3. **Game Manager (`/server/games.js`)**
 
-   - Creates and manages game sessions
-   - Validates moves and wall placements
-   - Updates game state
+   - Creates games, seats up to four players, and locks joining after the first move
+   - Validates and applies moves with the shared rules
+   - Keeps each game's undo history and runs unanimous undo votes
+   - Skips players who leave mid-game
 
 4. **Game State Storage**
    - Stores active games and their states
@@ -98,21 +98,30 @@ flowchart TD
 2. **Game Creation/Joining**
 
    ```
-   Client -> Server: JOIN_GAME (gameId)
-   Server -> Client: GAME_JOINED (playerNumber, gameState)
+   Client -> Server: JOIN_GAME (gameId, playerName)
+   Server -> Client: GAME_JOINED (playerNumber, gameState) or GAME_ERROR
+   Server -> All Clients in game: GAME_STATE
    ```
 
 3. **Game Play**
 
    ```
-   Client -> Server: MAKE_MOVE (move details)
-   Server -> All Clients: GAME_STATE (updated state)
+   Client -> Server: MAKE_MOVE (move)
+   Server -> All Clients in game: GAME_STATE, or GAME_ERROR to the sender
    ```
 
-4. **Disconnection**
+4. **Undo**
+
+   ```
+   Client -> Server: REQUEST_UNDO
+   Each client -> Server: VOTE_UNDO (approve)
+   Server -> All Clients in game: GAME_STATE (vote progress, then the restored state or the decline)
+   ```
+
+5. **Disconnection**
    ```
    Client Disconnects
-   Server -> Other Client: PLAYER_DISCONNECTED
+   Server -> Remaining Clients: GAME_STATE (player marked as left)
    ```
 
 ## Data Flow Architecture
