@@ -115,6 +115,11 @@ export default function Game() {
     return { row, col, orientation: selectedAction === 'wall-h' ? 'horizontal' : 'vertical' };
   }
 
+  function canPlaceWall(wall: Wall): boolean {
+    return gameState !== null && playerNumber !== null &&
+      wallCounts[playerNumber] > 0 && isValidWallPlacement(gameState, wall);
+  }
+
   function handleSquareClick(row: number, col: number) {
     if (!isMyTurn || !gameState || playerNumber === null) return;
 
@@ -126,7 +131,7 @@ export default function Game() {
     }
 
     const wall = wallAt(row, col);
-    if (wallCounts[playerNumber] > 0 && isValidWallPlacement(gameState, wall)) {
+    if (canPlaceWall(wall)) {
       gameService.makeMove({ type: 'wall', ...wall });
       setSelectedAction('move');
       setWallPreview(null);
@@ -134,9 +139,9 @@ export default function Game() {
   }
 
   function handleSquareHover(row: number, col: number) {
-    if (!isMyTurn || !gameState || selectedAction === 'move') return;
+    if (!isMyTurn || selectedAction === 'move') return;
     const wall = wallAt(row, col);
-    setWallPreview(isValidWallPlacement(gameState, wall) ? wall : null);
+    setWallPreview(canPlaceWall(wall) ? wall : null);
   }
 
   function isSamePosition(a: Position, b: Position): boolean {
