@@ -147,4 +147,6 @@ All communication happens over port 3000:
 - HTTP: `http://server:3000` - Serves the React application
 - WebSocket: `ws://server:3000` - Handles real-time game communication
 
+With Docker (`docker compose up --build`), the server still listens on port 3000 inside the container and `APP_PORT` picks the host port. The browser builds the WebSocket URL from the page address, so it follows whatever host port is mapped.
+
 This unified approach simplifies deployment and network configuration while maintaining separation of concerns in the codebase.

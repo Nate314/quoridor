@@ -27,6 +27,28 @@ npm run start
 
 This type-checks the code, builds the client, and starts the server. Access the game at `http://localhost:3000`.
 
+## Run with Docker
+
+With Docker installed (no local Node needed), build and start the game with one command:
+
+```bash
+docker compose up --build
+```
+
+Then open `http://localhost:3000`. Stop it with Ctrl+C, or run `docker compose down` if you started it with `-d`.
+
+To use a different host port, set `APP_PORT`:
+
+```bash
+APP_PORT=3055 docker compose up --build        # macOS, Linux, Git Bash
+```
+
+```powershell
+$env:APP_PORT = 3055; docker compose up --build   # Windows PowerShell
+```
+
+The image builds the client with Vite, then runs the same Express and WebSocket server as `npm run start`, as a non-root user.
+
 ## Development
 
 - `npm test` runs the unit tests

@@ -1,0 +1,24 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      # The server always listens on 3000 inside the container. The browser builds its
+      # WebSocket URL from the page address, so any host port works.
+      - "${APP_PORT:-3000}:3000"
+    restart: unless-stopped
+    # Forwards SIGTERM to node (which ignores it as PID 1), so `docker compose down` is immediate.
+    init: true
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "wget", "-qO", "/dev/null", "http://127.0.0.1:3000/"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+      start_interval: 1s
