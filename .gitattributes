@@ -1,0 +1,4 @@
+# The launcher stubs and their config must stay LF in every checkout (bash fails on CRLF).
+*.sh text eol=lf
+*.ps1 text eol=lf
+run.conf text eol=lf
