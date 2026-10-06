@@ -49,6 +49,19 @@ $env:APP_PORT = 3055; docker compose up --build   # Windows PowerShell
 
 The image builds the client with Vite, then runs the same Express and WebSocket server as `npm run start`, as a non-root user.
 
+### Running next to other projects
+
+Port 3000 is a common default, so another project may already hold it. The launcher picks a free host port for you, writes it to a git-ignored `.env`, starts the game in the background and prints the URL:
+
+```
+./run.sh          # macOS, Linux, Git Bash
+.\run.ps1         # Windows PowerShell
+```
+
+Any arguments are passed straight to `docker compose`, for example `./run.sh down` or `./run.sh logs -f`. Running it again while the game is up leaves the port alone. To pin a port, edit `.env`.
+
+`run.sh` and `run.ps1` are small stubs. The launcher itself lives in [compose-launcher](https://github.com/Nate314/compose-launcher), which is included here as a git submodule in the `compose-launcher` folder. A plain `git clone` leaves that folder empty, so the first launcher run fetches it with `git submodule update --init compose-launcher`. That step needs network access and a real git clone (a zip download cannot fetch it). To get it up front, clone with `git clone --recurse-submodules`. The port and the printed URL are configured in `run.conf`. Plain `docker compose up --build` does not use the launcher or the submodule.
+
 ## Development
 
 - `npm test` runs the unit tests

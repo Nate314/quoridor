@@ -10,3 +10,4 @@ docs
 Dockerfile
 docker-compose.yml
 .env
+compose-launcher
