@@ -39,11 +39,14 @@ flowchart TD
 
 ### Client-Side Components
 
-1. **React UI Components (`/src/components/Game.tsx`)**
+1. **React UI Components (`/src/components`)**
 
-   - Renders game board and pieces
-   - Handles user interactions
-   - Displays game state and player info
+   - `Game.tsx` shows `JoinForm.tsx` until the player is seated, then `GameScreen.tsx`
+   - `GameScreen.tsx` lays out the game and owns the selected action and last-move highlight
+   - `GameStatus.tsx`, `ActionButtons.tsx` and `WallActions.tsx` show game state and take the player's choices
+   - `Board.tsx` renders the squares with `Pawn.tsx` and `WallPiece.tsx`, and turns clicks into moves
+   - `UndoVote.tsx` shows a running undo vote
+   - `/src/hooks/useGameConnection.ts` holds the joined game's state and errors from the Game Service
 
 2. **Game Service (`/src/services/gameService.ts`)**
 
