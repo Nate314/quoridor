@@ -3,9 +3,9 @@ import gameService from '../services/gameService';
 import ActionButtons from './ActionButtons';
 import Board from './Board';
 import GameStatus from './GameStatus';
+import GoalList from './GoalList';
+import TurnActions from './TurnActions';
 import UndoVote from './UndoVote';
-import WallActions from './WallActions';
-import { SEATS } from '../../shared/rules.ts';
 import type { Move, PublicGameState, Seat } from '../../shared/types.ts';
 import type { Action } from '../types.ts';
 
@@ -36,23 +36,7 @@ export default function GameScreen({ gameState, playerNumber, error }: GameScree
   return (
     <>
       <div className="game-id">Game ID: {gameState.gameId}</div>
-      <div className="game">
-        <div className="player-info">
-          You are {playerNames[playerNumber]} (Player {playerNumber}). Your goal: reach the {SEATS[playerNumber].goalLabel}.
-        </div>
-        <div className="game-info">
-          <GameStatus gameState={gameState} error={error} />
-          <ActionButtons
-            gameState={gameState}
-            playerNumber={playerNumber}
-            selectedAction={selectedAction}
-            lastMovePinned={lastMovePinned}
-            onSelectAction={setSelectedAction}
-            onUndo={() => gameService.requestUndo()}
-            onToggleLastMovePinned={() => setLastMovePinned(prev => !prev)}
-            onLastMoveHover={setLastMoveHovered}
-          />
-        </div>
+      <div className="game game-layout">
         <div className="board-area">
           <Board
             gameState={gameState}
@@ -72,7 +56,19 @@ export default function GameScreen({ gameState, playerNumber, error }: GameScree
             />
           )}
         </div>
-        <WallActions selectedAction={selectedAction} onSelectAction={setSelectedAction} />
+        <div className="game-info side-panel">
+          <GameStatus gameState={gameState} error={error} />
+          <TurnActions selectedAction={selectedAction} onSelectAction={setSelectedAction} />
+          <ActionButtons
+            gameState={gameState}
+            playerNumber={playerNumber}
+            lastMovePinned={lastMovePinned}
+            onUndo={() => gameService.requestUndo()}
+            onToggleLastMovePinned={() => setLastMovePinned(prev => !prev)}
+            onLastMoveHover={setLastMoveHovered}
+          />
+          <GoalList gameState={gameState} playerNumber={playerNumber} />
+        </div>
       </div>
     </>
   );

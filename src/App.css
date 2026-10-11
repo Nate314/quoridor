@@ -19,6 +19,10 @@
   --board-grain: rgba(255, 255, 255, 0.1);
   --wall: #3E2723;
   --wall-preview: rgba(62, 39, 35, 0.4);
+  --player1: #1E88E5;
+  --player2: #E53935;
+  --player3: #43A047;
+  --player4: #8E24AA;
 }
 
 :root[data-theme="dark"] {
@@ -52,7 +56,8 @@ body, html {
   width: 100%;
 }
 
-.theme-toggle {
+.theme-toggle,
+.faq-button {
   position: fixed;
   top: 1rem;
   right: 1rem;
@@ -71,7 +76,75 @@ body, html {
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 }
 
-.theme-toggle:hover {
+.theme-toggle:hover,
+.faq-button:hover {
+  background: var(--button-hover-bg);
+}
+
+.faq-button {
+  right: 4.25rem;
+  color: #FFF;
+  font-weight: bold;
+}
+
+.faq-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  box-sizing: border-box;
+  background: rgba(0, 0, 0, 0.5);
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.faq-panel {
+  position: relative;
+  max-width: 560px;
+  max-height: 100%;
+  overflow-y: auto;
+  padding: 20px 28px;
+  box-sizing: border-box;
+  border-radius: 8px;
+  background: var(--panel-bg);
+  color: #FFF;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
+}
+
+.faq-panel h2 {
+  margin: 0 0 12px;
+  font-size: 24px;
+}
+
+.faq-item h3 {
+  margin: 16px 0 4px;
+  font-size: 16px;
+}
+
+.faq-item p {
+  margin: 0;
+  font-size: 14px;
+}
+
+.faq-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: var(--button-bg);
+  color: #FFF;
+  font-size: 1.2rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.faq-close:hover {
   background: var(--button-hover-bg);
 }
 
@@ -165,16 +238,6 @@ body, html {
   border-radius: 4px;
 }
 
-.player-info {
-  margin-bottom: 20px;
-  font-size: 18px;
-  color: white;
-  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.3);
-  background: var(--banner-bg);
-  padding: 10px 20px;
-  border-radius: 4px;
-}
-
 .board.not-your-turn {
   opacity: 0.7;
   pointer-events: none;
@@ -216,12 +279,18 @@ body, html {
   transform: none;
 }
 
-.board {
+/* The frame sits outside .board so its colours stay full strength when the board is dimmed */
+.board-frame {
   position: relative;
   border: 8px solid var(--board-frame);
-  background: var(--board-bg);
   width: fit-content;
   box-shadow: 0 0 20px rgba(0, 0, 0, 0.3);
+}
+
+.board {
+  position: relative;
+  background: var(--board-bg);
+  width: fit-content;
   background-image:
     repeating-linear-gradient(
       90deg,
@@ -239,7 +308,24 @@ body, html {
     );
 }
 
-.board::before {
+/* Each side of the frame takes the colour of the pawn that has to reach it */
+.board-frame.goal-edge1 {
+  border-top-color: var(--player1);
+}
+
+.board-frame.goal-edge2 {
+  border-bottom-color: var(--player2);
+}
+
+.board-frame.goal-edge3 {
+  border-right-color: var(--player3);
+}
+
+.board-frame.goal-edge4 {
+  border-left-color: var(--player4);
+}
+
+.board-frame::before {
   content: '';
   position: absolute;
   top: -8px;
@@ -309,12 +395,12 @@ body, html {
 }
 
 .pawn.player1 {
-  background: radial-gradient(circle at 35% 35%, #64B5F6 0%, #1E88E5 100%);
+  background: radial-gradient(circle at 35% 35%, #64B5F6 0%, var(--player1) 100%);
   border: 2px solid #1565C0;
 }
 
 .pawn.player2 {
-  background: radial-gradient(circle at 35% 35%, #E57373 0%, #E53935 100%);
+  background: radial-gradient(circle at 35% 35%, #E57373 0%, var(--player2) 100%);
   border: 2px solid #C62828;
 }
 
@@ -370,44 +456,55 @@ body, html {
   transform: translate(46px, -1px);
 }
 
-.wall-actions {
-  margin-top: 20px;
-  display: flex;
-  gap: 15px;
+.game-layout {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: flex-start;
   justify-content: center;
+  gap: 20px;
+  /* A fixed, centred box only gets half the window by default, which would wrap too early */
+  width: max-content;
+  max-width: 100vw;
+  max-height: 100vh;
+  overflow-y: auto;
+  box-sizing: border-box;
 }
 
-.wall-actions button {
-  padding: 10px 20px;
-  font-size: 14px;
-  border: none;
-  border-radius: 4px;
-  background: var(--button-bg);
-  color: #fff;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-  min-width: 140px;
+.side-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 300px;
+  margin-bottom: 0;
+  box-sizing: border-box;
 }
 
-.wall-actions button:hover {
-  background: var(--button-hover-bg);
-  transform: translateY(-1px);
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+.side-panel .game-status {
+  margin: 0;
 }
 
-.wall-actions button.active {
-  background: var(--button-active-bg);
-  color: white;
-  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.3);
-  transform: translateY(1px);
+.panel-title {
+  font-weight: bold;
+}
+
+.turn-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.turn-actions button {
+  margin: 0;
 }
 
 .action-buttons {
   display: flex;
   gap: 10px;
   justify-content: center;
-  margin-top: 10px;
+}
+
+.action-buttons button {
+  margin: 0;
 }
 
 .game-status {
@@ -463,17 +560,55 @@ body, html {
 }
 
 .pawn.player3 {
-  background: radial-gradient(circle at 35% 35%, #81C784 0%, #43A047 100%);
+  background: radial-gradient(circle at 35% 35%, #81C784 0%, var(--player3) 100%);
   border: 2px solid #2E7D32;
 }
 
 .pawn.player4 {
-  background: radial-gradient(circle at 35% 35%, #BA68C8 0%, #8E24AA 100%);
+  background: radial-gradient(circle at 35% 35%, #BA68C8 0%, var(--player4) 100%);
   border: 2px solid #6A1B9A;
 }
 
 .board-area {
   position: relative;
+}
+
+.goal-list {
+  align-self: center;
+}
+
+.goal-list-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.goal-list-you {
+  font-weight: bold;
+}
+
+.goal-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.goal-dot.player1 {
+  background: var(--player1);
+}
+
+.goal-dot.player2 {
+  background: var(--player2);
+}
+
+.goal-dot.player3 {
+  background: var(--player3);
+}
+
+.goal-dot.player4 {
+  background: var(--player4);
 }
 
 .undo-vote {

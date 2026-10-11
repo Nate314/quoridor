@@ -101,7 +101,8 @@ Any arguments are passed straight to `docker compose`, for example `./run.sh dow
 - Click "Move" and then click a valid square to move your pawn
 - Click "Horizontal Wall" or "Vertical Wall" to place walls
 - Valid moves and wall placements are highlighted
-- The game board is dimmed when it's not your turn
+- The game board is dimmed when it's not your turn; its frame stays coloured to show each player's goal side
+- Click "?" at the top right for FAQs on moving, placing walls and the rules
 - Click Undo to ask everyone to undo the last turn; it happens only if every player still in the game approves
 - Hover or click Show Last Move to highlight the previous move
 

@@ -43,7 +43,7 @@ flowchart TD
 
    - `Game.tsx` shows `JoinForm.tsx` until the player is seated, then `GameScreen.tsx`
    - `GameScreen.tsx` lays out the game and owns the selected action and last-move highlight
-   - `GameStatus.tsx`, `ActionButtons.tsx` and `WallActions.tsx` show game state and take the player's choices
+   - `GameStatus.tsx`, `ActionButtons.tsx` and `TurnActions.tsx` show game state and take the player's choices
    - `Board.tsx` renders the squares with `Pawn.tsx` and `WallPiece.tsx`, and turns clicks into moves
    - `UndoVote.tsx` shows a running undo vote
    - `/src/hooks/useGameConnection.ts` holds the joined game's state and errors from the Game Service

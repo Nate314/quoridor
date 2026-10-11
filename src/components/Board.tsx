@@ -73,32 +73,34 @@ export default function Board({ gameState, playerNumber, isMyTurn, selectedActio
   }
 
   return (
-    <div className={`board ${isMyTurn ? '' : 'not-your-turn'} ${isGameOver ? 'game-over' : ''}`}>
-      {INDEXES.map(row => (
-        <div key={row} className="board-row">
-          {INDEXES.map(col => {
-            const position = { row, col };
-            const seat = pawnAt(position);
-            return (
-              <div
-                key={col}
-                className={getSquareClassName(position)}
-                onClick={() => handleSquareClick(position)}
-                onMouseEnter={() => setHoveredSquare(position)}
-                onMouseLeave={() => setHoveredSquare(null)}
-              >
-                {seat && <Pawn seat={seat} name={playerNames[seat]} />}
-              </div>
-            );
-          })}
-        </div>
-      ))}
-      <div className="wall-overlay">
-        {walls.map((wall, index) => (
-          <WallPiece key={index} wall={wall} className={isLastMoveWall(wall) ? 'wall last-move' : 'wall'} />
+    <div className={`board-frame ${seats.map(seat => `goal-edge${seat}`).join(' ')}`}>
+      <div className={`board ${isMyTurn ? '' : 'not-your-turn'} ${isGameOver ? 'game-over' : ''}`}>
+        {INDEXES.map(row => (
+          <div key={row} className="board-row">
+            {INDEXES.map(col => {
+              const position = { row, col };
+              const seat = pawnAt(position);
+              return (
+                <div
+                  key={col}
+                  className={getSquareClassName(position)}
+                  onClick={() => handleSquareClick(position)}
+                  onMouseEnter={() => setHoveredSquare(position)}
+                  onMouseLeave={() => setHoveredSquare(null)}
+                >
+                  {seat && <Pawn seat={seat} name={playerNames[seat]} />}
+                </div>
+              );
+            })}
+          </div>
         ))}
+        <div className="wall-overlay">
+          {walls.map((wall, index) => (
+            <WallPiece key={index} wall={wall} className={isLastMoveWall(wall) ? 'wall last-move' : 'wall'} />
+          ))}
+        </div>
+        {wallPreview && <WallPiece wall={wallPreview} className="wall-preview" />}
       </div>
-      {wallPreview && <WallPiece wall={wallPreview} className="wall-preview" />}
     </div>
   );
 }
